@@ -8,9 +8,10 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import train_test_split
 from util.img_util import readImageFile, saveImageFile
 # Import feature extraction modules
-from util.feature_A import extract_feature_A
-from util.feature_B import extract_feature_B
+from util.feature_A import compute_asymmetry_from_mask
+from util.feature_B import extract_border_features
 from util.feature_C import extract_feature_C
+from models_evaluation import train_and_select_model
 
 def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labels_csv=None):
     """
@@ -59,8 +60,8 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         mask_img = readImageFile(mask_img_path) if exists(mask_img_path) else None
         
         # Extract features from original image
-        feat_a = extract_feature_A(orig_img)
-        feat_b = extract_feature_B(orig_img)
+        feat_a = compute_asymmetry_from_mask(orig_img)
+        feat_b = extract_border_features(orig_img)
         feat_c = extract_feature_C(orig_img, mask_img)  # Assuming feature C might use the mask
         
         # Add features to data dictionary (handle first image case)
@@ -139,30 +140,25 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
     x_all = data_df[baseline_feats]
     y_all = data_df["label"]
     
-    # Split dataset
-    x_train, x_test, y_train, y_test = train_test_split(x_all, y_all, test_size=0.3, random_state=42)
-    print(f"Training set size: {x_train.shape[0]}, Test set size: {x_test.shape[0]}")
-    
-    # Train classifier
-    print("Training logistic regression classifier...")
-    clf = LogisticRegression(max_iter=1000, verbose=1)
-    clf.fit(x_train, y_train)
-    
-    # Test classifier
-    print("Testing classifier...")
-    y_pred = clf.predict(x_test)
-    acc = accuracy_score(y_test, y_pred)
-    cm = confusion_matrix(y_test, y_pred)
-    print(f"Test Accuracy: {acc:.4f}")
+        # First split: Train (70%) and Temp (30%)
+    x_train, x_temp, y_train, y_temp = train_test_split(
+        x_all, y_all, test_size=0.3, random_state=42, stratify=y_all
+    )
+
+    # Second split: Temp into Validation (15%) and Test (15%)
+    x_val, x_test, y_val, y_test = train_test_split(
+        x_temp, y_temp, test_size=0.5, random_state=42, stratify=y_temp
+    )
+
+    best_model, best_model_name = train_and_select_model(x_train, y_train, x_val, y_val)
+
+    # Final test evaluation
+    print("\n--- TEST PHASE ---")
+    y_test_pred = best_model.predict(x_test)
+    test_acc = accuracy_score(y_test, y_test_pred)
+    cm = confusion_matrix(y_test, y_test_pred)
+    print(f"Test Accuracy: {test_acc:.4f}")
     print(f"Confusion Matrix:\n{cm}")
-    
-    # Save results
-    print(f"Saving results to {result_path}")
-    result_df = data_df.loc[x_test.index, ["filename"]].copy()
-    result_df['true_label'] = y_test.values
-    result_df['predicted_label'] = y_pred
-    result_df.to_csv(result_path, index=False)
-    print("Results saved successfully!")
 
 if __name__ == "__main__":
     # Configure paths - adjust these to your specific PC folders
