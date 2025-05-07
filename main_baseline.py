@@ -8,7 +8,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import train_test_split
 from util.img_util import readImageFile, saveImageFile
 # Import feature extraction modules
-from util.feature_A import compute_asymmetry_from_mask
+from util.feature_A import extract_asymmetry_features
 from util.feature_B import extract_border_features
 from util.feature_C import extract_feature_C
 from models_evaluation import train_and_select_model
