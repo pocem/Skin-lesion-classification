@@ -5,6 +5,7 @@ from skimage.filters import threshold_otsu
 from skimage.measure import label, regionprops
 from skimage.transform import rotate
 from sklearn.decomposition import PCA
+from scipy.ndimage import distance_transform_edt
 import numpy as np
 import os
 
@@ -86,3 +87,14 @@ def pca_align(mask):
     # Rotate to align principal axis horizontally
     rotated = rotate(mask.astype(float), angle, resize=True, order=0)
     return rotated
+
+def boundary_weighted_asymmetry(mask):
+    # Compute distance to boundary (weight matrix)
+    boundary = mask - binary_erosion(mask)  # Find edges
+    weights = distance_transform_edt(~boundary)  # Weight ~ distance to edge
+    
+    # Apply weights to asymmetry calculation
+    vert_flip = np.fliplr(mask)
+    vert_diff = np.sum(weights * np.abs(mask.astype(int) - vert_flip.astype(int)))
+    
+    return vert_diff / np.sum(weights)
