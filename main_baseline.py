@@ -60,7 +60,7 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         mask_img = readImageFile(mask_img_path) if exists(mask_img_path) else None
         
         # Extract features from original image
-        feat_a = compute_asymmetry_from_mask(orig_img)
+        feat_a = extract_asymmetry_features(orig_img)
         feat_b = extract_border_features(orig_img)
         feat_c = extract_feature_C(orig_img, mask_img)  # Assuming feature C might use the mask
         
