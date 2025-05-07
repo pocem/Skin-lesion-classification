@@ -3,6 +3,8 @@ from skimage.io import imread
 from skimage.color import rgb2gray
 from skimage.filters import threshold_otsu
 from skimage.measure import label, regionprops
+from skimage.transform import rotate
+from sklearn.decomposition import PCA
 import numpy as np
 import os
 
@@ -70,3 +72,17 @@ def compute_asymmetry_from_mask(mask):
     
     asymmetry_score = (vert_diff + horiz_diff) / (2 * total_area)
     return asymmetry_score
+
+def pca_align(mask):
+    # Get lesion coordinates and center
+    y, x = np.where(mask)
+    center = np.array([x.mean(), y.mean()])
+    
+    # PCA to find principal axis
+    pca = PCA(n_components=2)
+    pca.fit(np.column_stack([x, y]))
+    angle = np.arctan2(pca.components_[0][1], pca.components_[0][0]) * 180 / np.pi
+    
+    # Rotate to align principal axis horizontally
+    rotated = rotate(mask.astype(float), angle, resize=True, order=0)
+    return rotated
