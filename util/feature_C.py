@@ -220,3 +220,17 @@ df = extract_feature_T('path_to_images', output_csv='all_features.csv')
 # Third extraction (e.g., shape features)
 df = extract_feature_S('path_to_images', output_csv='all_features.csv')
 """
+if __name__ == "__main__":
+    image_folder = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\images"
+    output_csv = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\output_features.csv"
+
+    df = extract_feature_C(
+        folder_path=image_folder,
+        output_csv=None,  # set to None so you can manually handle CSV saving if needed
+        normalize_colors=True,
+        visualize=True  # or False if you don't want visualizations
+    )
+
+    # Save to CSV separately
+    df.to_csv(output_csv, index=False)
+    print(f"Saved extracted features to: {output_csv}")
