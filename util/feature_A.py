@@ -8,6 +8,8 @@ from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from scipy.ndimage import distance_transform_edt
 
+folder_path= "your path"
+
 def extract_asymmetry_features(folder_path, output_csv=None, visualize=False):
     """
     Function to extract asymmetry features from skin lesion images in a folder
@@ -100,8 +102,8 @@ def extract_asymmetry_features(folder_path, output_csv=None, visualize=False):
             features['a_combined'] = min(combined_score, 1.0)
             
             # Visualization
-            if visualize:
-                visualize_asymmetry(img, binary_mask, features, filename)
+            # if visualize:
+            #     visualize_asymmetry(img, binary_mask, features, filename)
             
             results.append(features)
             
@@ -175,63 +177,82 @@ def compute_boundary_asymmetry(mask):
     vert_diff = np.sum(weights * np.abs(mask.astype(int) - vert_flip.astype(int)))
     return vert_diff / max(np.sum(weights), 1)  # Avoid division by zero
 
-def visualize_asymmetry(img, mask, features, filename):
-    """Visualize asymmetry calculations"""
-    plt.figure(figsize=(15, 10))
+if __name__ == "__main__":
+    folder_path = "your path"
+    output_csv_path = folder_path + "/asymmetry_features.csv"  # Or use os.path.join as you prefer
+
+    # Run the feature extraction and save results to CSV
+    df = extract_asymmetry_features(folder_path, output_csv=output_csv_path, visualize=False)
+
+    # Optional: print the first few lines of the dataframe to check
+    print(df.head())
+
+
+extract_asymmetry_features(folder_path, visualize=False)
+
+
+
+
+
+# for the report:
+
+# def visualize_asymmetry(img, mask, features, filename):
+#     """Visualize asymmetry calculations"""
+#     plt.figure(figsize=(15, 10))
     
-    # Original image with mask
-    plt.subplot(2, 3, 1)
-    plt.imshow(img)
-    plt.title("Original Image")
+#     # Original image with mask
+#     plt.subplot(2, 3, 1)
+#     plt.imshow(img)
+#     plt.title("Original Image")
     
-    plt.subplot(2, 3, 2)
-    plt.imshow(mask, cmap='gray')
-    plt.title("Lesion Mask")
+#     plt.subplot(2, 3, 2)
+#     plt.imshow(mask, cmap='gray')
+#     plt.title("Lesion Mask")
     
-    # Basic asymmetry visualization
-    labeled = measure.label(mask)
-    regions = measure.regionprops(labeled)
-    lesion = max(regions, key=lambda r: r.area)
-    minr, minc, maxr, maxc = lesion.bbox
-    cropped = mask[minr:maxr, minc:maxc]
+#     # Basic asymmetry visualization
+#     labeled = measure.label(mask)
+#     regions = measure.regionprops(labeled)
+#     lesion = max(regions, key=lambda r: r.area)
+#     minr, minc, maxr, maxc = lesion.bbox
+#     cropped = mask[minr:maxr, minc:maxc]
     
-    plt.subplot(2, 3, 3)
-    plt.imshow(cropped, cmap='gray')
-    plt.contour(np.fliplr(cropped), colors='red', linewidths=1)
-    plt.title(f"Basic Asymmetry\nScore: {features['a_basic']:.3f}")
+#     plt.subplot(2, 3, 3)
+#     plt.imshow(cropped, cmap='gray')
+#     plt.contour(np.fliplr(cropped), colors='red', linewidths=1)
+#     plt.title(f"Basic Asymmetry\nScore: {features['a_basic']:.3f}")
     
-    # PCA asymmetry visualization
-    try:
-        y, x = np.where(cropped)
-        pca = PCA(n_components=2)
-        pca.fit(np.column_stack([x, y]))
-        angle = np.arctan2(pca.components_[0][1], pca.components_[0][0]) * 180 / np.pi
-        rotated = transform.rotate(cropped.astype(float), angle, resize=True, order=0)
+#     # PCA asymmetry visualization
+#     try:
+#         y, x = np.where(cropped)
+#         pca = PCA(n_components=2)
+#         pca.fit(np.column_stack([x, y]))
+#         angle = np.arctan2(pca.components_[0][1], pca.components_[0][0]) * 180 / np.pi
+#         rotated = transform.rotate(cropped.astype(float), angle, resize=True, order=0)
         
-        plt.subplot(2, 3, 4)
-        plt.imshow(rotated, cmap='gray')
-        plt.contour(np.fliplr(rotated), colors='red', linewidths=1)
-        plt.title(f"PCA-Aligned Asymmetry\nScore: {features['a_pca']:.3f}")
-    except:
-        pass
+#         plt.subplot(2, 3, 4)
+#         plt.imshow(rotated, cmap='gray')
+#         plt.contour(np.fliplr(rotated), colors='red', linewidths=1)
+#         plt.title(f"PCA-Aligned Asymmetry\nScore: {features['a_pca']:.3f}")
+#     except:
+#         pass
     
-    # Boundary-weighted visualization
-    boundary = cropped - morphology.binary_erosion(cropped)
-    weights = distance_transform_edt(~boundary)
+#     # Boundary-weighted visualization
+#     boundary = cropped - morphology.binary_erosion(cropped)
+#     weights = distance_transform_edt(~boundary)
     
-    plt.subplot(2, 3, 5)
-    plt.imshow(weights, cmap='viridis')
-    plt.title("Boundary Weights")
+#     plt.subplot(2, 3, 5)
+#     plt.imshow(weights, cmap='viridis')
+#     plt.title("Boundary Weights")
     
-    plt.subplot(2, 3, 6)
-    plt.imshow(cropped, cmap='gray')
-    plt.contour(np.fliplr(cropped), colors='red', linewidths=1)
-    plt.title(f"Combined Score: {features['a_combined']:.3f}")
+#     plt.subplot(2, 3, 6)
+#     plt.imshow(cropped, cmap='gray')
+#     plt.contour(np.fliplr(cropped), colors='red', linewidths=1)
+#     plt.title(f"Combined Score: {features['a_combined']:.3f}")
     
-    plt.tight_layout()
+#     plt.tight_layout()
     
-    # Save visualization
-    vis_dir = os.path.join(os.path.dirname(folder_path), 'asymmetry_visualizations')
-    os.makedirs(vis_dir, exist_ok=True)
-    plt.savefig(os.path.join(vis_dir, f"asymmetry_{filename}"))
-    plt.close()
+#     # Save visualization
+#     vis_dir = os.path.join(os.path.dirname(folder_path), 'asymmetry_visualizations')
+#     os.makedirs(vis_dir, exist_ok=True)
+#     plt.savefig(os.path.join(vis_dir, f"asymmetry_{filename}"))
+#     plt.close()

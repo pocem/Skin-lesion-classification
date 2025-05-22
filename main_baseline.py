@@ -162,13 +162,13 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
 
 if __name__ == "__main__":
     # Configure paths - adjust these to your specific PC folders
-    original_img_dir = "./data/"  # Original wound images
-    mask_img_dir = "./data_masks/"  # Masked/segmented images
-    labels_csv_path = "./dataset.csv"  # CSV with labels
-    
+    original_img_dir = "C:\Users\laura\Documents\University\2nd semester\Projects in Data Science\Projects\Final Project\data\zr7vgbcyr2-1\images\imgs_part_1\imgs_part_1"  # Original wound images
+    mask_img_dir = "C:\Users\laura\Documents\University\2nd semester\Projects in Data Science\Projects\Final Project\padchest_lesion_masks\lesion_masks"  # Masked/segmented images
+    labels_csv_path = "C:\Users\laura\Documents\University\2nd semester\Projects in Data Science\Projects\Final Project\data\zr7vgbcyr2-1\metadata.csv"  # CSV with labels
+
     # Output files
-    output_csv_path = "./dataset_baseline_features.csv"  # Where to save extracted features
-    result_path = "./result/result_baseline.csv"  # Where to save results
+    output_csv_path = "C:\Users\laura\Documents\University\2nd semester\Projects in Data Science\Projects\Final Project\2025-FYP-Final\dataset_baseline_features.csv"  # Where to save extracted features
+    result_path = "C:\Users\laura\Documents\University\2nd semester\Projects in Data Science\Projects\Final Project\2025-FYP-Final\result\result_baseline.csv"  # Where to save results
     
     # Make sure result directory exists
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
