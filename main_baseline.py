@@ -85,12 +85,25 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
     print(f"Confusion Matrix:\n{cm}")
 
 if __name__ == "__main__":
+<<<<<<< HEAD
     original_img_dir = "./data/"
     mask_img_dir = "./data_masks/"
     labels_csv_path = "./dataset.csv"
     output_csv_path = "./dataset_baseline_features.csv"
     result_path = "./result/result_baseline.csv"
 
+=======
+    # Configure paths - adjust these to your specific PC folders
+    original_img_dir = ""  # Original wound images
+    mask_img_dir = ""  # Masked/segmented images
+    labels_csv_path = ""  # CSV with labels
+
+    # Output files
+    output_csv_path = ""  # Where to save extracted features
+    result_path = ""  # Where to save results
+    
+    # Make sure result directory exists
+>>>>>>> ef5d8b731413a74d3d5524c8e152fb79e024d5ea
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
 
     main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, result_path, recreate_features=True)
