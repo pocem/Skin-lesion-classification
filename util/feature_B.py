@@ -206,3 +206,4 @@ if __name__ == "__main__":
     # Save with border scores
     df_with_scores.to_csv(output_csv.replace('.csv', '_with_scores.csv'), index=False)
     print(f"\nSaved features with border scores to {output_csv.replace('.csv', '_with_scores.csv')}")
+    
