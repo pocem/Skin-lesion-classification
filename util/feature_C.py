@@ -222,7 +222,7 @@ df = extract_feature_S('path_to_images', output_csv='all_features.csv')
 """
 if __name__ == "__main__":
     image_folder = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\images"
-    output_csv = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\output_features.csv"
+    output_csv = r"C:\Users\Erik\OneDrive - ITU\Escritori  o\2 semester\Semester project\Introduction to final project\output_features.csv"
 
     df = extract_feature_C(
         folder_path=image_folder,
