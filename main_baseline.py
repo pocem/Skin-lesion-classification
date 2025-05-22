@@ -8,7 +8,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import train_test_split
 from util.img_util import readImageFile, saveImageFile
 # Import feature extraction modules
-from util.feature_A import compute_asymmetry_from_mask
+from util.feature_A import extract_asymmetry_features
 from util.feature_B import extract_border_features
 from util.feature_C import extract_feature_C
 from models_evaluation import train_and_select_model
@@ -60,7 +60,7 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         mask_img = readImageFile(mask_img_path) if exists(mask_img_path) else None
         
         # Extract features from original image
-        feat_a = compute_asymmetry_from_mask(orig_img)
+        feat_a = extract_asymmetry_features(orig_img)
         feat_b = extract_border_features(orig_img)
         feat_c = extract_feature_C(orig_img, mask_img)  # Assuming feature C might use the mask
         
