@@ -205,10 +205,7 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
     else:
         combined_df = existing_df if existing_df is not None else pd.DataFrame()
     
-    # Save to CSV if an output path is specified
-    if output_csv and not combined_df.empty:
-        combined_df.to_csv(output_csv, index=False)
-        print(f"Features saved to {output_csv}")
+
     
     return combined_df
 
