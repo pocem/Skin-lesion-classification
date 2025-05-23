@@ -170,8 +170,8 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
 
 if __name__ == "__main__":
     # Configure paths - adjust these to your specific folders
-    original_img_dir = "./data/"
-    mask_img_dir = "./data_masks/"
+    original_img_dir = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\images"
+    mask_img_dir = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\masks"
     labels_csv_path = "./dataset.csv"
     output_csv_path = "./dataset_baseline_features.csv"
     result_path = "./result/result_baseline.csv"
@@ -181,4 +181,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error running main: {e}")
         sys.exit(1)
-        
