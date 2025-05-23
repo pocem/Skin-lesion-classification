@@ -177,18 +177,24 @@ def compute_boundary_asymmetry(mask):
     vert_diff = np.sum(weights * np.abs(mask.astype(int) - vert_flip.astype(int)))
     return vert_diff / max(np.sum(weights), 1)  # Avoid division by zero
  
+
+
 if __name__ == "__main__":
-    folder_path = "your path"
-    output_csv_path = folder_path + "/asymmetry_features.csv"  # Or use os.path.join as you prefer
- 
+    folder_path = "your path" # This should be a valid path for testing
+    # Example: folder_path = r"C:\path\to\your\test\images" 
+    output_csv_path = os.path.join(folder_path, "asymmetry_features.csv") 
+
     # Run the feature extraction and save results to CSV
     df = extract_asymmetry_features(folder_path, output_csv=output_csv_path, visualize=False)
- 
+
     # Optional: print the first few lines of the dataframe to check
-    print(df.head())
- 
- 
-extract_asymmetry_features(folder_path, visualize=False)
+    if not df.empty:
+        print(df.head())
+    else:
+        print("No asymmetry features were extracted.")
+    
+    # REMOVE OR COMMENT OUT THIS LINE if it's outside the if __name__ block:
+    # extract_asymmetry_features(folder_path, visualize=False) 
  
  
  

@@ -220,17 +220,25 @@ df = extract_feature_T('path_to_images', output_csv='all_features.csv')
 # Third extraction (e.g., shape features)
 df = extract_feature_S('path_to_images', output_csv='all_features.csv')
 """
+
 if __name__ == "__main__":
-    image_folder = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\images"
-    output_csv = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\2025-FYP-Final\result\result_dataframe.csv"
+    image_folder = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\images" # Example path
+    # This output_csv variable is for the standalone run of feature_C.py
+    output_csv_for_standalone_run = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\2025-FYP-Final\result\color_features_standalone.csv"
 
     df = extract_feature_C(
         folder_path=image_folder,
-        output_csv=None,  # set to None so you can manually handle CSV saving if needed
+        output_csv=None,  # Pass None here if you want to handle saving manually after getting the df
         normalize_colors=True,
-        visualize=True  # or False if you don't want visualizations
+        visualize=False # Set to False for faster processing unless debugging
     )
 
-    # Save to CSV separately
-    df.to_csv(output_csv, index=False)
-    print(f"Saved extracted features to: {output_csv}")
+    # Save to CSV separately if df is not empty
+    if not df.empty:
+        # Ensure the directory for output_csv_for_standalone_run exists
+        os.makedirs(os.path.dirname(output_csv_for_standalone_run), exist_ok=True)
+        df.to_csv(output_csv_for_standalone_run, index=False) # Use the defined path
+        print(f"Saved extracted color features (standalone run) to: {output_csv_for_standalone_run}")
+        print(df.head())
+    else:
+        print("No color features were extracted (standalone run).")
