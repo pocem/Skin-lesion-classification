@@ -88,12 +88,12 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
             
             if 'filename' not in raw_metadata_df.columns:
                 print("Warning: Metadata CSV must contain 'filename' (or 'img_id') column. Proceeding without metadata.")
-            elif 'diagnostic' not in raw_metadata_df.columns:
-                print("Warning: Metadata CSV must contain 'diagnostic' column for model training. Proceeding without labels.")
+            elif 'real_label' not in raw_metadata_df.columns:
+                print("Warning: Metadata CSV must contain 'real_label' column for model training. Proceeding without labels.")
             else:
-                # Keep only filename and diagnostic for merging, other metadata can be added if needed for features later
-                metadata_df = raw_metadata_df[['filename', 'diagnostic']] # Add other columns if they are features
-                print(f"Metadata (filename, diagnostic) loaded: {metadata_df.shape[0]} entries.")
+                # Keep only filename and real_label for merging, other metadata can be added if needed for features later
+                metadata_df = raw_metadata_df[['filename', 'real_label']] # Add other columns if they are features
+                print(f"Metadata (filename, real_label) loaded: {metadata_df.shape[0]} entries.")
         except Exception as e:
             print(f"Error loading metadata: {e}. Proceeding without metadata.")
     else:
@@ -144,8 +144,8 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
     print(f"\nMerged feature dataset saved to {output_csv_path}")
     
     if not final_df.empty:
-        feature_cols = [col for col in final_df.columns if col not in ['filename', 'diagnostic']] # 'label' will be created later
-        print(f"Dataset contains {len(feature_cols)} potential feature columns (excluding filename/diagnostic).")
+        feature_cols = [col for col in final_df.columns if col not in ['filename', 'real_label']] # 'label' will be created later
+        print(f"Dataset contains {len(feature_cols)} potential feature columns (excluding filename/real_label).")
     
     return final_df
 
@@ -189,19 +189,19 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
     print("\n--- MODEL TRAINING AND EVALUATION ---")
     
     # 1. Label Preparation
-    if 'diagnostic' not in data_df.columns:
-        print("CRITICAL ERROR: 'diagnostic' column not found in the dataset. Cannot proceed with model training.")
+    if 'real_label' not in data_df.columns:
+        print("CRITICAL ERROR: 'real_label' column not found in the dataset. Cannot proceed with model training.")
         return
     
-    data_df.dropna(subset=['diagnostic'], inplace=True) # Drop rows where diagnostic label is missing
+    data_df.dropna(subset=['real_label'], inplace=True) # Drop rows where real_label label is missing
     if data_df.empty:
-        print("CRITICAL ERROR: Dataset became empty after dropping rows with missing 'diagnostic' labels.")
+        print("CRITICAL ERROR: Dataset became empty after dropping rows with missing 'real_label' labels.")
         return
 
     le = LabelEncoder()
-    data_df['label'] = le.fit_transform(data_df['diagnostic'])
+    data_df['label'] = le.fit_transform(data_df['real_label'])
     class_names = le.classes_
-    print("\nDiagnostic classes and their encoded labels:")
+    print("\nreal_label classes and their encoded labels:")
     for i, class_name_item in enumerate(class_names):
         print(f"{class_name_item}: {i}")
 
@@ -323,8 +323,8 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
             'filename': filenames_test.values, # Ensure it's an array/list
             'true_label_encoded': y_test.values,
             'predicted_label_encoded': y_test_pred,
-            'true_label_diagnostic': le.inverse_transform(y_test.values),
-            'predicted_label_diagnostic': le.inverse_transform(y_test_pred)
+            'true_label_cancer': le.inverse_transform(y_test.values),
+            'predicted_label_cancer': le.inverse_transform(y_test_pred)
         })
         for i, class_name_item in enumerate(class_names):
             if i < y_test_pred_proba.shape[1]:
