@@ -194,7 +194,6 @@ if __name__ == "__main__":
         visualize=False  # Set to True to see processing steps
     )
     
-    
     # Calculate border scores
     df_with_scores = calculate_border_score(df)
     
