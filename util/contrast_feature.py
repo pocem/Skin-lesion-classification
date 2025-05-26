@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans  # Make sure this import is present
+
+
 
 def extract_feature_contrast(folder_path, output_csv=None, visualize=False):
     """
