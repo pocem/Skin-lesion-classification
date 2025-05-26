@@ -428,14 +428,16 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         print(f"Classification Report (Test Set):\n{cls_report_str}")
 
         # 8. Reporting
+                # 8. Reporting
         test_results_df = pd.DataFrame({
-            'filename': filenames_test.values,
+            'filename': filenames_test.values, 
             'true_label_encoded': y_test.values, 
             'predicted_label_encoded': y_test_pred, 
             'true_label_text': y_test.map({0: 'non-cancer', 1: 'cancer'}),
             'predicted_label_text': pd.Series(y_test_pred).map({0: 'non-cancer', 1: 'cancer'})
         })
 
+        # Add probabilities
         if y_test_pred_proba.shape[1] == len(class_names_for_report): 
             test_results_df[f'proba_{class_names_for_report[0]}'] = y_test_pred_proba[:, 0]
             test_results_df[f'proba_{class_names_for_report[1]}'] = y_test_pred_proba[:, 1]
@@ -443,12 +445,12 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
             print(f"Warning: Mismatch in probability array shape {y_test_pred_proba.shape} and class_names_for_report length {len(class_names_for_report)}")
             test_results_df[f'proba_{class_names_for_report[0]}'] = 0.0
             test_results_df[f'proba_{class_names_for_report[1]}'] = 0.0
-
+        
         os.makedirs(os.path.dirname(result_path), exist_ok=True)
         test_details_csv_path = os.path.join(os.path.dirname(result_path), f"{os.path.splitext(os.path.basename(result_path))[0]}_predictions_details.csv")
         test_results_df.to_csv(test_details_csv_path, index=False)
         print(f"Detailed test predictions saved to {test_details_csv_path}")
-
+        
         summary_report_data = {
             'model_name': best_model_name,
             'validation_accuracy': best_val_acc,
