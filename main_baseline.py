@@ -5,10 +5,6 @@ from os.path import join, exists
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-# LabelEncoder might not be strictly needed for y if it's already 0/1,
-# but useful for consistent string representation in reports if we choose that path.
-# For now, we'll map manually for reporting.
-from sklearn.preprocessing import LabelEncoder 
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 
@@ -85,75 +81,94 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         try:
             raw_metadata_df = pd.read_csv(labels_csv)
             print(f"Raw metadata loaded. Columns: {raw_metadata_df.columns.tolist()}")
+            # print(f"First 5 rows of raw metadata:\n{raw_metadata_df.head()}") # DEBUG
+
             if 'img_id' in raw_metadata_df.columns:
                 print("Renaming 'img_id' to 'filename' in metadata.")
                 raw_metadata_df = raw_metadata_df.rename(columns={'img_id': 'filename'})
             
+            # Use 'diagnostic' as the source for 'real_label'
+            label_column_name = 'diagnostic' # THIS IS THE KEY CHANGE FOR INPUT CSV
+
             if 'filename' not in raw_metadata_df.columns:
-                print("ERROR: Metadata CSV must contain 'filename' (or 'img_id') column. Cannot proceed with metadata.")
-                metadata_df = None # Explicitly set to None
-            elif 'real_label' not in raw_metadata_df.columns:
-                print("ERROR: Metadata CSV must contain 'real_label' column for model training. Cannot proceed with metadata.")
-                metadata_df = None # Explicitly set to None
+                print(f"ERROR: Metadata CSV must contain 'filename' (or 'img_id') column. Cannot proceed with metadata.")
+                metadata_df = None 
+            elif label_column_name not in raw_metadata_df.columns:
+                print(f"ERROR: Metadata CSV must contain '{label_column_name}' column for model training. Cannot proceed with metadata.")
+                metadata_df = None 
             else:
-                print("'filename' and 'real_label' columns found in metadata.")
+                print(f"'filename' and '{label_column_name}' columns found in metadata.")
+                
+                # Rename the source label column to 'real_label' for internal consistency
+                if label_column_name != 'real_label':
+                    raw_metadata_df.rename(columns={label_column_name: 'real_label'}, inplace=True)
+                    print(f"Renamed '{label_column_name}' column to 'real_label' for internal consistency.")
+
                 cancer_diagnoses = ["BCC", "SCC", "MEL"]
                 raw_metadata_df['binary_target'] = raw_metadata_df['real_label'].apply(lambda x: 1 if x in cancer_diagnoses else 0)
-                print("Binary target (0=non-cancer, 1=cancer) created from 'real_label'.")
+                print("Binary target (0=non-cancer, 1=cancer) created from 'real_label' (originally '{label_column_name}').")
                 print(f"Value counts for 'binary_target':\n{raw_metadata_df['binary_target'].value_counts(dropna=False)}")
                 
                 cols_to_keep_from_metadata = ['filename', 'real_label', 'binary_target']
-                # Ensure all required columns exist before selecting
+                
+                # Add other metadata columns that you want to use as features directly
+                # Example: if 'age' from metadata was a feature, add 'age' to cols_to_keep_from_metadata
+                # For now, just keeping the essential ones for labeling.
+
                 missing_cols = [col for col in cols_to_keep_from_metadata if col not in raw_metadata_df.columns]
                 if missing_cols:
                     print(f"ERROR: The following essential columns are missing from raw_metadata_df after processing: {missing_cols}")
                     metadata_df = None
                 else:
-                    metadata_df = raw_metadata_df[cols_to_keep_from_metadata]
+                    metadata_df = raw_metadata_df[cols_to_keep_from_metadata].copy() 
                     print(f"Metadata (filename, real_label, binary_target) selected. Shape: {metadata_df.shape[0]} entries. Columns: {metadata_df.columns.tolist()}")
                     if metadata_df.empty:
                         print("Warning: metadata_df became empty after selecting columns. Check metadata CSV content and 'filename' consistency.")
+                    # print(f"First 5 rows of selected metadata_df:\n{metadata_df.head()}") # DEBUG
 
         except Exception as e:
-            print(f"Error loading metadata or creating binary_target: {e}. Proceeding without metadata.")
-            metadata_df = None # Ensure it's None on error
+            print(f"Error loading metadata or creating binary_target: {e}")
+            metadata_df = None 
     else:
         print("\nNo metadata file provided or file doesn't exist. Proceeding without metadata.")
-        metadata_df = None # Ensure it's None
+        metadata_df = None
 
     # --- Merge DataFrames ---
     print("\nMerging feature DataFrames...")
     
     dataframes_to_merge = []
     if metadata_df is not None and not metadata_df.empty and 'filename' in metadata_df.columns:
-        print(f"Attempting to add metadata_df to merge list. Columns: {metadata_df.columns.tolist()}")
+        print(f"Attempting to add metadata_df to merge list. Shape: {metadata_df.shape}, Columns: {metadata_df.columns.tolist()}")
         dataframes_to_merge.append(metadata_df)
         print(f"metadata_df added to merge list. Current dataframes_to_merge count: {len(dataframes_to_merge)}")
     else:
         print("metadata_df was NOT added to merge list. This is a likely cause of missing label columns if labels_csv was provided.")
         if metadata_df is None:
             print("Reason: metadata_df is None (either not loaded, file not found, or error during processing).")
-        elif metadata_df.empty:
+        elif metadata_df is not None and metadata_df.empty: 
             print("Reason: metadata_df is empty.")
-        elif 'filename' not in metadata_df.columns:
+        elif metadata_df is not None and 'filename' not in metadata_df.columns:
             print("Reason: metadata_df is missing 'filename' column.")
     
-    # Add feature DataFrames only if they are not empty and have 'filename'
+    feature_dfs_added = 0
     if not df_A.empty and 'filename' in df_A.columns:
         dataframes_to_merge.append(df_A)
-        print(f"df_A added. Current dataframes_to_merge count: {len(dataframes_to_merge)}")
+        feature_dfs_added += 1
+        print(f"df_A added. Shape: {df_A.shape}. Current dataframes_to_merge count: {len(dataframes_to_merge)}")
     elif not df_A.empty: print("Skipping df_A in merge due to missing 'filename' column or being empty.")
     else: print("df_A is empty, not added.")
         
     if not df_B.empty and 'filename' in df_B.columns:
         dataframes_to_merge.append(df_B)
-        print(f"df_B added. Current dataframes_to_merge count: {len(dataframes_to_merge)}")
+        feature_dfs_added += 1
+        print(f"df_B added. Shape: {df_B.shape}. Current dataframes_to_merge count: {len(dataframes_to_merge)}")
     elif not df_B.empty: print("Skipping df_B in merge due to missing 'filename' column or being empty.")
     else: print("df_B is empty, not added.")
 
     if not df_C.empty and 'filename' in df_C.columns:
         dataframes_to_merge.append(df_C)
-        print(f"df_C added. Current dataframes_to_merge count: {len(dataframes_to_merge)}")
+        feature_dfs_added += 1
+        print(f"df_C added. Shape: {df_C.shape}. Current dataframes_to_merge count: {len(dataframes_to_merge)}")
     elif not df_C.empty: print("Skipping df_C in merge due to missing 'filename' column or being empty.")
     else: print("df_C is empty, not added.")
 
@@ -162,39 +177,42 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         print("No DataFrames with 'filename' column to merge. Exiting feature creation.")
         return pd.DataFrame()
     
-    print(f"Total DataFrames to merge: {len(dataframes_to_merge)}")
+    print(f"Total DataFrames to merge: {len(dataframes_to_merge)}. Number of feature_dfs added: {feature_dfs_added}")
     if dataframes_to_merge:
-        print(f"First DataFrame for merge has columns: {dataframes_to_merge[0].columns.tolist()}")
-
+        print(f"First DataFrame for merge has columns: {dataframes_to_merge[0].columns.tolist()} and shape {dataframes_to_merge[0].shape}")
+        
     if len(dataframes_to_merge) == 1:
         print("Only one DataFrame available for merging. Using it as final_df.")
         final_df = dataframes_to_merge[0]
         if metadata_df is not None and final_df is metadata_df :
-             print("This single DataFrame is metadata_df.")
-        else:
-             print("This single DataFrame is a feature DataFrame. Labels will be missing if metadata_df was not included.")
-
-    # Original logic for len(dataframes_to_merge) == 1 was slightly different, adjusting for clarity
-    # elif len(dataframes_to_merge) == 1 and metadata_df is not None and dataframes_to_merge[0] is metadata_df:
-    #     print("Only metadata DataFrame is available. No features to merge. Saving metadata.")
-    #     final_df = metadata_df
-    # elif len(dataframes_to_merge) < 2 : # Simplified this condition based on the above
-    #     print("Not enough DataFrames to perform a meaningful merge (need at least one feature set and metadata, or multiple feature sets).")
-    #     if dataframes_to_merge: 
-    #         final_df = dataframes_to_merge[0]
-    #     else: # Should not happen due to the "if not dataframes_to_merge" check
-    #         return pd.DataFrame()
-    else: # len(dataframes_to_merge) > 1
+             print("This single DataFrame is metadata_df. No features were extracted or added.")
+        elif feature_dfs_added == 1 and metadata_df is None: # Only one feature df, no metadata
+             print("This single DataFrame is a feature DataFrame. Labels will be missing as metadata_df was not included or processed.")
+        elif feature_dfs_added == 0 and metadata_df is not None: # Should have been caught by the first print.
+            print("This single DataFrame is metadata_df, means no feature DataFrames were valid to add.")
+        else: # Should not happen based on logic, but for safety
+            print("Unclear state with a single DataFrame.")
+             
+    elif len(dataframes_to_merge) > 1:
         print(f"Proceeding with merge of {len(dataframes_to_merge)} DataFrames.")
         final_df = dataframes_to_merge[0]
         for i, df_to_merge in enumerate(dataframes_to_merge[1:]):
-            print(f"Merging with DataFrame {i+2} which has columns: {df_to_merge.columns.tolist()} and shape {df_to_merge.shape}")
+            
+            common_filenames = pd.Series(list(set(final_df['filename']) & set(df_to_merge['filename'])))
+            print(f"Merging with DataFrame {i+2} (shape {df_to_merge.shape}). Found {len(common_filenames)} common filenames.")
+            if not common_filenames.empty:
+                print(f"Sample common filenames: {common_filenames.head().tolist()}")
+            else:
+                print(f"WARNING: No common filenames for merge between current final_df and DataFrame {i+2}. This merge will result in an empty DataFrame if 'how=inner'.")
+
             final_df = pd.merge(final_df, df_to_merge, on='filename', how='inner')
             print(f"Shape after merge {i+1}: {final_df.shape}. Columns: {final_df.columns.tolist()}")
             if final_df.empty:
-                print(f"Warning: DataFrame became empty after merging with DataFrame {i+2}. Check for common 'filename' values.")
+                print(f"CRITICAL WARNING: DataFrame became empty after merging with DataFrame {i+2}. This is likely due to no common 'filename' values or inconsistent filename formats.")
                 break
-
+    else: 
+        print("No DataFrames to merge (this means dataframes_to_merge list is empty). Returning empty DataFrame.")
+        return pd.DataFrame()
 
     if final_df.empty:
         print("Resulting merged DataFrame is empty. This might be due to 'inner' merge and no common filenames or issues with feature extraction.")
@@ -210,13 +228,16 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         missing_label_cols_in_final = [col for col in expected_label_cols if col not in final_df.columns]
         if missing_label_cols_in_final:
             print(f"WARNING: The final merged DataFrame is MISSING these label columns: {missing_label_cols_in_final}")
-        feature_cols = [col for col in final_df.columns if col not in ['filename', 'real_label', 'binary_target']] 
-        print(f"Dataset contains {len(feature_cols)} potential feature columns (excluding filename/real_label/binary_target).")
+        else:
+            print(f"SUCCESS: 'real_label' and 'binary_target' columns are present in the final DataFrame.")
+        
+        # Exclude filename and all label-related columns for feature count
+        non_feature_for_count = ['filename', 'real_label', 'binary_target', 'label'] # 'label' is created in main()
+        feature_cols = [col for col in final_df.columns if col not in non_feature_for_count]
+        print(f"Dataset contains {len(feature_cols)} potential feature columns.")
     
     return final_df
 
-# --- main function remains the same as in the previous response ---
-# (Copy the main function from the previous good version here)
 def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, result_path, recreate_features=False):
     print("\n--- FEATURE DATASET CREATION ---\n")
     
@@ -240,7 +261,7 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         return
 
     print("\n--- Merged Dataset Information ---")
-    data_df.info()
+    data_df.info() # This will show if 'binary_target' and 'real_label' are present after create_feature_dataset
     print("\nFirst 5 rows of the merged dataset:")
     print(data_df.head())
     
@@ -258,13 +279,23 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
     
     # 1. Label Preparation (Binary: 0 for non-cancer, 1 for cancer)
     if 'binary_target' not in data_df.columns:
-        # Attempt to create it if 'real_label' is present (e.g. loading older CSV)
+        # Fallback if 'binary_target' is somehow missing but 'real_label' (or 'diagnostic') is there
+        source_label_col = None
         if 'real_label' in data_df.columns:
-            print("Warning: 'binary_target' column not found. Creating from 'real_label'.")
+            source_label_col = 'real_label'
+        elif 'diagnostic' in data_df.columns: # Check for 'diagnostic' if 'real_label' isn't there
+            source_label_col = 'diagnostic'
+            print("Warning: 'binary_target' and 'real_label' not found. Using 'diagnostic' to create binary labels.")
+        
+        if source_label_col:
+            print(f"Creating 'binary_target' from '{source_label_col}' column as it was missing.")
             cancer_diagnoses_map = ["BCC", "SCC", "MEL"]
-            data_df['binary_target'] = data_df['real_label'].apply(lambda x: 1 if x in cancer_diagnoses_map else 0)
+            data_df['binary_target'] = data_df[source_label_col].apply(lambda x: 1 if x in cancer_diagnoses_map else 0)
+            # Ensure 'real_label' exists for reporting if we used 'diagnostic'
+            if source_label_col == 'diagnostic' and 'real_label' not in data_df.columns:
+                data_df.rename(columns={'diagnostic': 'real_label'}, inplace=True)
         else:
-            print("CRITICAL ERROR: 'binary_target' (and 'real_label') column not found. Cannot proceed.")
+            print("CRITICAL ERROR: Neither 'binary_target', 'real_label', nor 'diagnostic' column found in the dataset. Cannot proceed.")
             return
     
     data_df.dropna(subset=['binary_target'], inplace=True) 
@@ -277,6 +308,13 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
     print(f"\nBinary classification: 0 -> {class_names_for_report[0]}, 1 -> {class_names_for_report[1]}")
     print(f"Label distribution:\n{data_df['label'].value_counts(normalize=True)}")
 
+    # Ensure 'real_label' is present for reporting if it wasn't the source for binary_target but 'diagnostic' was
+    if 'real_label' not in data_df.columns and 'diagnostic' in data_df.columns:
+        print("Copying 'diagnostic' to 'real_label' for reporting purposes as 'real_label' was missing.")
+        data_df['real_label'] = data_df['diagnostic']
+    elif 'real_label' not in data_df.columns:
+        print("Warning: 'real_label' (or 'diagnostic') not found for original diagnosis text in reporting.")
+        data_df['real_label'] = data_df['label'].map({0: 'non-cancer_derived', 1: 'cancer_derived'}) # Placeholder
 
     # 2. Feature Engineering (One-Hot Encoding for categorical features)
     if 'c_dominant_channel' in data_df.columns:
@@ -351,7 +389,18 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
 
     # 6. Model Training and Selection
     try:
+        if x_train.empty or x_val.empty:
+            print("Training or validation set is empty before calling train_and_select_model. Skipping.")
+            return
+        if y_train.nunique() < 2 or y_val.nunique() < 2:
+            print(f"Training or validation target has less than 2 unique classes. y_train unique: {y_train.nunique()}, y_val unique: {y_val.nunique()}. Skipping model training.")
+            return
+
         best_model, best_model_name, best_val_acc = train_and_select_model(x_train, y_train, x_val, y_val)
+
+        if best_model is None:
+            print("No model was selected. Exiting.")
+            return
 
         # 7. Test Phase
         print("\n--- TEST PHASE ---")
@@ -365,7 +414,6 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
             y_test_pred_proba = np.zeros((len(y_test_pred), num_classes_binary))
             for i, pred_label in enumerate(y_test_pred):
                 y_test_pred_proba[i, pred_label] = 1.0 
-
 
         test_acc = accuracy_score(y_test, y_test_pred)
         cm_labels_binary = [0, 1] 
@@ -395,7 +443,6 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
             print(f"Warning: Mismatch in probability array shape {y_test_pred_proba.shape} and class_names_for_report length {len(class_names_for_report)}")
             test_results_df[f'proba_{class_names_for_report[0]}'] = 0.0
             test_results_df[f'proba_{class_names_for_report[1]}'] = 0.0
-
 
         os.makedirs(os.path.dirname(result_path), exist_ok=True)
         test_details_csv_path = os.path.join(os.path.dirname(result_path), f"{os.path.splitext(os.path.basename(result_path))[0]}_predictions_details.csv")
@@ -439,246 +486,17 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         traceback.print_exc()
 
 
-
-def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, result_path, recreate_features=False):
-    print("\n--- FEATURE DATASET CREATION ---\n")
-    
-    if not original_img_dir or not output_csv_path:
-        raise ValueError("original_img_dir and output_csv_path must be provided.")
-
-    data_df = None
-    if recreate_features or not exists(output_csv_path):
-        print(f"Creating new feature dataset at {output_csv_path}")
-        data_df = create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labels_csv=labels_csv_path)
-    else:
-        print(f"Loading existing feature dataset from {output_csv_path}")
-        try:
-            data_df = pd.read_csv(output_csv_path)
-        except Exception as e:
-            print(f"Error loading existing dataset: {e}. Will attempt to recreate.")
-            data_df = create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labels_csv=labels_csv_path)
-
-    if data_df is None or data_df.empty:
-        print("Failed to create or load the feature dataset. Exiting.")
-        return
-
-    print("\n--- Merged Dataset Information ---")
-    data_df.info()
-    print("\nFirst 5 rows of the merged dataset:")
-    print(data_df.head())
-    
-    if 'filename' not in data_df.columns:
-        print("CRITICAL ERROR: 'filename' column is missing in the final DataFrame!")
-        return
-    if data_df['filename'].isnull().any():
-        print("Warning: Some 'filename' entries are NaN. This usually indicates an issue in merging.")
-    if data_df['filename'].duplicated().any():
-        print("Warning: Duplicate filenames found. Consolidating by keeping the first occurrence.")
-        data_df = data_df.drop_duplicates(subset=['filename'], keep='first')
-
-
-    print("\n--- MODEL TRAINING AND EVALUATION ---")
-    
-    # 1. Label Preparation (Binary: 0 for non-cancer, 1 for cancer)
-    if 'binary_target' not in data_df.columns:
-        # Attempt to create it if 'real_label' is present (e.g. loading older CSV)
-        if 'real_label' in data_df.columns:
-            print("Warning: 'binary_target' column not found. Creating from 'real_label'.")
-            cancer_diagnoses_map = ["BCC", "SCC", "MEL"]
-            data_df['binary_target'] = data_df['real_label'].apply(lambda x: 1 if x in cancer_diagnoses_map else 0)
-        else:
-            print("CRITICAL ERROR: 'binary_target' (and 'real_label') column not found. Cannot proceed.")
-            return
-    
-    data_df.dropna(subset=['binary_target'], inplace=True) 
-    if data_df.empty:
-        print("CRITICAL ERROR: Dataset became empty after dropping rows with missing 'binary_target' labels.")
-        return
-
-    data_df['label'] = data_df['binary_target'].astype(int)
-    # For reporting and consistent interpretation of 0 and 1
-    class_names_for_report = ['non-cancer', 'cancer'] 
-    print(f"\nBinary classification: 0 -> {class_names_for_report[0]}, 1 -> {class_names_for_report[1]}")
-    print(f"Label distribution:\n{data_df['label'].value_counts(normalize=True)}")
-
-
-    # 2. Feature Engineering (One-Hot Encoding for categorical features)
-    if 'c_dominant_channel' in data_df.columns:
-        print("\nOne-hot encoding 'c_dominant_channel'...")
-        data_df = pd.get_dummies(data_df, columns=['c_dominant_channel'], prefix='c_dom_channel', dummy_na=False)
-    
-    # 3. Identify Feature Columns
-    potential_non_feature_cols = ['filename', 'real_label', 'binary_target', 'label', 
-                                  'diagnostic', # Original multi-class diagnostic if present
-                                  'patient_id', 'lesion_id', 'smoke', 'drink', 
-                                  'background_father', 'background_mother', 'age', 'pesticide', 
-                                  'gender', 'skin_cancer_history', 'cancer_history', 'has_piped_water', 
-                                  'has_sewage_system', 'fitspatrick', 'region', 'diameter_1', 
-                                  'diameter_2', 'itch', 'grew', 'hurt', 'changed', 'bleed', 
-                                  'elevation', 'biopsed'] 
-    
-    feature_columns = [col for col in data_df.columns if col not in potential_non_feature_cols and col != 'label_text_binary'  # Ensure no accidental inclusion
-    ]
-    
-    if not feature_columns:
-        print("CRITICAL ERROR: No feature columns identified after exclusions. Cannot train model.")
-        return
-    print(f"\nUsing {len(feature_columns)} feature columns for training: {feature_columns}")
-
-    x_all = data_df[feature_columns].copy()
-    y_all = data_df["label"].copy() # This is our binary 0/1 label
-    current_filenames = data_df['filename'].copy()
-
-
-    # 4. Data Cleaning
-    print("\nConverting features to numeric and handling NaNs/Infs...")
-    for feat in feature_columns:
-        x_all[feat] = pd.to_numeric(x_all[feat], errors='coerce')
-
-    all_nan_cols = x_all.columns[x_all.isnull().all()].tolist()
-    if all_nan_cols:
-        print(f"Warning: The following columns became all NaN after numeric conversion and will be dropped: {all_nan_cols}")
-        x_all = x_all.drop(columns=all_nan_cols)
-        feature_columns = [col for col in feature_columns if col not in all_nan_cols]
-        if not feature_columns:
-            print("CRITICAL ERROR: All feature columns were dropped. Cannot train model.")
-            return
-    
-    x_all.replace([np.inf, -np.inf], np.nan, inplace=True)
-    imputer = SimpleImputer(strategy='mean')
-    x_all_imputed = imputer.fit_transform(x_all)
-    x_all = pd.DataFrame(x_all_imputed, columns=x_all.columns, index=x_all.index)
-
-    if len(x_all) == 0:
-        print("Skipping model training: No samples remaining after data cleaning.")
-        return
-    if y_all.nunique() < 2:
-        print(f"Skipping model training: Not enough unique classes in labels for stratified split or training. Unique labels: {y_all.unique()}")
-        return
-
-    # 5. Data Splitting
-    print(f"\nSplitting data into train, validation, and test sets (Total samples: {len(x_all)})...")
-    try:
-        x_train, x_temp, y_train, y_temp, filenames_train, filenames_temp = train_test_split(
-            x_all, y_all, current_filenames, test_size=0.4, random_state=42, stratify=y_all
-        )
-        x_val, x_test, y_val, y_test, filenames_val, filenames_test = train_test_split(
-            x_temp, y_temp, filenames_temp, test_size=0.5, random_state=42, stratify=y_temp
-        )
-    except ValueError as e_split:
-        print(f"Error during data splitting: {e_split}. This might be due to too few samples in some classes.")
-        print(f"Class distribution in y_all: \n{y_all.value_counts()}")
-        return
-
-    print(f"Training set size: {len(x_train)}")
-    print(f"Validation set size: {len(x_val)}")
-    print(f"Test set size: {len(x_test)}")
-
-    # 6. Model Training and Selection
-    try:
-        best_model, best_model_name, best_val_acc = train_and_select_model(x_train, y_train, x_val, y_val)
-
-        # 7. Test Phase
-        print("\n--- TEST PHASE ---")
-        y_test_pred = best_model.predict(x_test)
-        
-        if hasattr(best_model, "predict_proba"):
-            y_test_pred_proba = best_model.predict_proba(x_test)
-        else:
-            print(f"Warning: Model {best_model_name} does not have predict_proba. Probabilities will be estimated.")
-            num_classes_binary = len(class_names_for_report) # Should be 2
-            y_test_pred_proba = np.zeros((len(y_test_pred), num_classes_binary))
-            for i, pred_label in enumerate(y_test_pred):
-                y_test_pred_proba[i, pred_label] = 1.0 # pred_label is 0 or 1
-
-
-        test_acc = accuracy_score(y_test, y_test_pred)
-        cm_labels_binary = [0, 1] # For binary classification
-        cm_display = confusion_matrix(y_test, y_test_pred, labels=cm_labels_binary)
-        
-        cls_report_dict = classification_report(y_test, y_test_pred, labels=cm_labels_binary, target_names=class_names_for_report, output_dict=True, zero_division=0)
-        cls_report_str = classification_report(y_test, y_test_pred, labels=cm_labels_binary, target_names=class_names_for_report, zero_division=0)
-        
-        print(f"\nBest Model on Test Set: {best_model_name}")
-        print(f"Test Accuracy: {test_acc:.4f}")
-        print(f"Confusion Matrix (Test Set) - Labels {class_names_for_report}:\n{cm_display}")
-        print(f"Classification Report (Test Set):\n{cls_report_str}")
-
-        # 8. Reporting
-        test_results_df = pd.DataFrame({
-            'filename': filenames_test.values,
-            'true_label_encoded': y_test.values, # 0 or 1
-            'predicted_label_encoded': y_test_pred, # 0 or 1
-            'true_label_text': y_test.map({0: 'non-cancer', 1: 'cancer'}),
-            'predicted_label_text': pd.Series(y_test_pred).map({0: 'non-cancer', 1: 'cancer'})
-        })
-
-        # Add probabilities
-        if y_test_pred_proba.shape[1] == len(class_names_for_report): # Should be 2
-            test_results_df[f'proba_{class_names_for_report[0]}'] = y_test_pred_proba[:, 0] # Prob of non-cancer
-            test_results_df[f'proba_{class_names_for_report[1]}'] = y_test_pred_proba[:, 1] # Prob of cancer
-        else:
-            print(f"Warning: Mismatch in probability array shape {y_test_pred_proba.shape} and class_names_for_report length {len(class_names_for_report)}")
-            # Fallback if shapes are wrong
-            test_results_df[f'proba_{class_names_for_report[0]}'] = 0.0
-            test_results_df[f'proba_{class_names_for_report[1]}'] = 0.0
-
-
-        os.makedirs(os.path.dirname(result_path), exist_ok=True)
-        test_details_csv_path = os.path.join(os.path.dirname(result_path), f"{os.path.splitext(os.path.basename(result_path))[0]}_predictions_details.csv")
-        test_results_df.to_csv(test_details_csv_path, index=False)
-        print(f"Detailed test predictions saved to {test_details_csv_path}")
-
-        summary_report_data = {
-            'model_name': best_model_name,
-            'validation_accuracy': best_val_acc,
-            'test_accuracy': test_acc,
-            'num_training_samples': len(x_train),
-            'num_validation_samples': len(x_val),
-            'num_test_samples': len(x_test),
-            'num_features_used': len(feature_columns),
-        }
-        for class_label_report in class_names_for_report: # Use ['non-cancer', 'cancer']
-            if class_label_report in cls_report_dict:
-                summary_report_data[f'{class_label_report}_precision_test'] = cls_report_dict[class_label_report]['precision']
-                summary_report_data[f'{class_label_report}_recall_test'] = cls_report_dict[class_label_report]['recall']
-                summary_report_data[f'{class_label_report}_f1-score_test'] = cls_report_dict[class_label_report]['f1-score']
-                summary_report_data[f'{class_label_report}_support_test'] = cls_report_dict[class_label_report]['support']
-        
-        if 'macro avg' in cls_report_dict:
-            summary_report_data['macro_avg_precision_test'] = cls_report_dict['macro avg']['precision']
-            summary_report_data['macro_avg_recall_test'] = cls_report_dict['macro avg']['recall']
-            summary_report_data['macro_avg_f1-score_test'] = cls_report_dict['macro avg']['f1-score']
-        if 'weighted avg' in cls_report_dict:
-            summary_report_data['weighted_avg_precision_test'] = cls_report_dict['weighted avg']['precision']
-            summary_report_data['weighted_avg_recall_test'] = cls_report_dict['weighted avg']['recall']
-            summary_report_data['weighted_avg_f1-score_test'] = cls_report_dict['weighted avg']['f1-score']
-
-        results_summary_df = pd.DataFrame([summary_report_data])
-        results_summary_df.to_csv(result_path, index=False)
-        print(f"Summary model evaluation results saved to {result_path}")
-
-    except ImportError:
-        print("Skipping model training: 'models_evaluation' module or 'train_and_select_model' function not found.")
-    except Exception as e_model:
-        print(f"Error during model training/evaluation: {e_model}")
-        import traceback
-        traceback.print_exc()
-
-
 if __name__ == "__main__":
     original_img_dir = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\images"
-    mask_img_dir = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\masks" # Currently not used by feature extractors in this baseline
+    mask_img_dir = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\masks" 
     labels_csv_path = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\2025-FYP-Final\data\filtered_metadata_img_id_first.csv"
     
-    output_feature_csv_dir = "./result" # Output directory for CSVs
+    output_feature_csv_dir = "./result" 
     os.makedirs(output_feature_csv_dir, exist_ok=True)
     
-    # Output path for the features CSV (will now include binary_target)
     merged_csv_filename = "dataset_baseline_features_binary_target.csv" 
     output_csv_path = os.path.join(output_feature_csv_dir, merged_csv_filename)
     
-    # Result path for model evaluation summary
     model_result_filename = "model_evaluation_binary_summary.csv" 
     result_path = os.path.join(output_feature_csv_dir, model_result_filename)
     
