@@ -9,6 +9,7 @@ def remove_and_save_hairs(
     threshold_value=18,
     dilation_kernel_size=(3, 3),
     dilation_iterations=2,
+    
     inpaint_radius=5,
     min_hair_contours_to_process=3,
     min_contour_area=15,
