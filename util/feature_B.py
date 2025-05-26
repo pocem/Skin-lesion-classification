@@ -185,8 +185,8 @@ def calculate_border_score(df: pd.DataFrame) -> pd.DataFrame:
 # Example usage
 if __name__ == "__main__":
     # Process all images in a folder
-    folder_path = "masks"
-    output_csv = "border_features.csv"
+    folder_path = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\masks"
+    output_csv = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\2025-FYP-Final\resultborder_features.csv"
     
     df = extract_border_features_from_folder(
         folder_path=folder_path,
