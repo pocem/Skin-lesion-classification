@@ -1,4 +1,4 @@
-# In main_extended.py (formerly main_baseline.py with new features)
+# In main_extended.py
 import sys
 import os
 from os.path import join, exists
@@ -14,7 +14,8 @@ try:
     from util.feature_A import extract_asymmetry_features
     from util.feature_B import extract_border_features_from_folder, calculate_border_score
     from util.feature_C import extract_feature_C
-    from util.haralick_extended import extract_haralick_features # Assuming this is the correct function name
+    # Corrected import based on the actual function name in haralick_extended.py
+    from util.haralick_extended import extract_feature_H as extract_haralick_features 
     from util.blue_veil import extract_feature_BV
     from util.hair_removal_feature import remove_and_save_hairs 
     from models_evaluation import train_and_select_model
@@ -30,11 +31,8 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
     if not exists(original_img_dir):
         raise FileNotFoundError(f"Original image directory not found: {original_img_dir}")
 
-    # --- HAIR REMOVAL STEP ---
-    # Define a directory for hair-removed images, relative to the output CSV's directory
-    # Ensures that if output_csv_path is in "./result", this goes into "./result/hair_removed_images"
-    base_output_dir = os.path.dirname(output_csv_path) # e.g., "./result"
-    hair_removed_img_dir_path = os.path.join(base_output_dir, "hair_removed_images_extended") # Distinguish from baseline
+    base_output_dir = os.path.dirname(output_csv_path) 
+    hair_removed_img_dir_path = os.path.join(base_output_dir, "hair_removed_images_extended") 
     
     if recreate_features and exists(hair_removed_img_dir_path):
         print(f"Recreate features is True, removing existing hair-removed images directory: {hair_removed_img_dir_path}")
@@ -42,7 +40,7 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
     os.makedirs(hair_removed_img_dir_path, exist_ok=True)
     
     print(f"\nHair removal process: Original images from '{original_img_dir}'")
-    print(f"Processed images (hair-removed or original) will be in: '{hair_removed_img_dir_path}'")
+    print(f"Processed images will be in: '{hair_removed_img_dir_path}'")
 
     valid_extensions = ('.jpg', '.jpeg', '.png', '.bmp')
     hair_params = { 
@@ -51,71 +49,64 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         "inpaint_radius": 5, "min_hair_contours_to_process": 3,
         "min_contour_area": 15
     }
-    processed_hair_removal_count = 0
+    processed_images_count = 0
+    inpainted_count = 0
     copied_original_count = 0
     hair_removal_error_count = 0
-    actually_inpainted_count = 0
 
     original_image_files = [f for f in os.listdir(original_img_dir) if f.lower().endswith(valid_extensions)]
-    
     print(f"Found {len(original_image_files)} images in original directory for hair processing.")
 
     for filename in original_image_files:
         original_image_path = os.path.join(original_img_dir, filename)
         target_path_in_hair_removed_dir = os.path.join(hair_removed_img_dir_path, filename)
 
+        # If not recreating features and the processed file exists, skip.
         if not recreate_features and os.path.exists(target_path_in_hair_removed_dir):
-            processed_hair_removal_count +=1 
+            processed_images_count += 1
+            # We don't know if it was inpainted or copied in a previous run without more checks,
+            # but it exists, so we count it as "processed" for this stage.
             continue
             
         try:
-            # The function remove_and_save_hairs now returns:
-            # hair_count (int): Number of hairs detected.
-            # saved_path (str or None): Path where the image was saved, or None if not saved.
-            # message (str): "Inpainted and saved", "No significant hairs found, original copied", "Error", etc.
-            # original_copied (bool): True if the original was copied, False otherwise.
-
-            hair_count, saved_img_path, msg, original_copied_flag = remove_and_save_hairs(
+            hair_count, saved_image_path, msg = remove_and_save_hairs(
                 image_path=original_image_path,
-                output_dir=hair_removed_img_dir_path,
+                output_dir=hair_removed_img_dir_path, # function saves here if hairs are processed
                 **hair_params
             )
-            
-            if saved_img_path and os.path.exists(saved_img_path): # Check if a path was returned and file exists
-                if not original_copied_flag: # Means it was inpainted
-                    actually_inpainted_count +=1
-                else: # Means original was copied by the function
-                    copied_original_count += 1
-                processed_hair_removal_count += 1
-            elif original_copied_flag: # Function decided to copy original but didn't return path, or did but it failed.
-                # This case should ideally be handled by the function returning the copied path.
-                # For safety, if it says original copied, but no path, let's assume it's handled or copy again.
-                if not os.path.exists(target_path_in_hair_removed_dir):
-                    shutil.copy2(original_image_path, target_path_in_hair_removed_dir)
-                copied_original_count +=1
-                processed_hair_removal_count +=1
-            else: # No path returned, not copied by function -> error or unexpected
-                print(f"Warning: Hair removal for {filename} - {msg}. Fallback: copying original.")
-                if not os.path.exists(target_path_in_hair_removed_dir):
-                  shutil.copy2(original_image_path, target_path_in_hair_removed_dir)
-                copied_original_count += 1
-                hair_removal_error_count += 1 # Count as an error if it was supposed to process but didn't save
-                processed_hair_removal_count += 1
+            # saved_image_path will be the path to the inpainted image OR the original image name in output_dir
+            # if the function decided to save/copy. The current remove_and_save_hairs only saves if inpainted.
 
+            if "hairs removed" in msg and saved_image_path and os.path.exists(saved_image_path):
+                # Image was inpainted and saved by the function
+                # print(f"Hair removal successful for {filename}: {msg}")
+                inpainted_count += 1
+            elif "No significant hairs found" in msg or "original image skipped" in msg:
+                # Hairs not significant, or function decided to skip inpainting.
+                # We need to copy the original.
+                # print(f"Hair removal criteria not met for {filename} ({msg}). Copying original.")
+                shutil.copy2(original_image_path, target_path_in_hair_removed_dir)
+                copied_original_count += 1
+            else: # Some other message, or saved_image_path is None (shouldn't happen with current remove_and_save_hairs)
+                print(f"Warning: Hair removal for {filename} - unexpected state or message: '{msg}'. Copying original as fallback.")
+                shutil.copy2(original_image_path, target_path_in_hair_removed_dir)
+                copied_original_count += 1
+            
+            processed_images_count += 1
 
         except Exception as e_hair:
             print(f"Error during hair removal for {filename}: {e_hair}. Attempting to copy original.")
             hair_removal_error_count += 1
             try:
-                if not os.path.exists(target_path_in_hair_removed_dir):
+                if not os.path.exists(target_path_in_hair_removed_dir): # Avoid re-copying if already there
                     shutil.copy2(original_image_path, target_path_in_hair_removed_dir)
                 copied_original_count += 1
-                processed_hair_removal_count += 1 
+                processed_images_count += 1 # Count as processed for feature extraction
             except Exception as e_copy:
                 print(f"Failed to copy original {filename} after hair removal error: {e_copy}")
     
-    print(f"Hair removal stage summary: Images processed (attempted): {processed_hair_removal_count}, Actually inpainted: {actually_inpainted_count}, Originals copied (no/few hairs or error fallback): {copied_original_count}, Errors during processing: {hair_removal_error_count}")
-    print(f"Total images in hair-removed directory for feature extraction: {len(os.listdir(hair_removed_img_dir_path))}")
+    print(f"Hair removal stage summary: Total images considered: {len(original_image_files)}, Successfully processed (available in target dir): {processed_images_count}, Actually inpainted: {inpainted_count}, Originals copied: {copied_original_count}, Errors: {hair_removal_error_count}")
+    print(f"Total images in '{hair_removed_img_dir_path}' for feature extraction: {len(os.listdir(hair_removed_img_dir_path))}")
 
     feature_processing_dir = hair_removed_img_dir_path
 
@@ -151,7 +142,7 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
     # --- Extract Haralick Features (Feature H) ---
     print(f"\nExtracting Haralick features from: {feature_processing_dir}")
     try:
-        df_H = extract_haralick_features(folder_path=feature_processing_dir, output_csv=None, visualize=False) # Ensure function name matches
+        df_H = extract_haralick_features(folder_path=feature_processing_dir, output_csv=None, visualize=False) 
         if df_H.empty: print("Warning: Haralick feature extraction (feature_H) returned an empty DataFrame.")
         else: print(f"Haralick features extracted: {df_H.shape[0]} images.")
     except Exception as e: print(f"Error during Haralick feature extraction: {e}"); df_H = pd.DataFrame(columns=['filename'])
@@ -194,44 +185,40 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
     dataframes_to_merge = []
     if metadata_df is not None and not metadata_df.empty:
         dataframes_to_merge.append(metadata_df)
+        print(f"metadata_df added. Shape: {metadata_df.shape}")
     
     feature_df_map = {"A": df_A, "B": df_B, "C": df_C, "H": df_H, "BV": df_BV}
     for name, df in feature_df_map.items():
         if not df.empty and 'filename' in df.columns:
-            # Ensure filenames are just the base name, e.g., "PAT_XXX.png"
-            # This depends on how your feature extractors save the 'filename' column
-            # df['filename'] = df['filename'].apply(os.path.basename) # Optional: if full paths are stored
             dataframes_to_merge.append(df)
             print(f"df_{name} added. Shape: {df.shape}. Filename sample: {df['filename'].iloc[0] if not df.empty else 'N/A'}")
         else:
              print(f"df_{name} is empty or missing 'filename', not added.")
 
-    if not dataframes_to_merge or (metadata_df is None and len(dataframes_to_merge) < 1) or \
-       (metadata_df is not None and len(dataframes_to_merge) < 2 and not any(df is metadata_df for df in dataframes_to_merge[1:] if len(dataframes_to_merge)>1) ): # needs metadata + at least one feature set
-        print("Not enough DataFrames to merge meaningfully (need metadata and at least one feature set). Exiting feature creation.")
+    if not dataframes_to_merge or \
+       (metadata_df is None and not any(not df.empty for df in [df_A, df_B, df_C, df_H, df_BV])) or \
+       (metadata_df is not None and len(dataframes_to_merge) < 2) : 
+        print("Not enough DataFrames to merge meaningfully. Exiting feature creation.")
         return pd.DataFrame()
             
     final_df = dataframes_to_merge[0]
-    print(f"Base DataFrame for merge: {final_df.columns.tolist()[:5]}..., Shape: {final_df.shape}")
-    if 'filename' in final_df.columns:
-        print(f"Sample filenames in base: {final_df['filename'].head().tolist()}")
-
+    print(f"Base DataFrame for merge (likely metadata if present): Columns: {final_df.columns.tolist()[:5]}..., Shape: {final_df.shape}")
 
     for i, df_to_merge in enumerate(dataframes_to_merge[1:]):
-        print(f"Merging with DataFrame {i+1}: {df_to_merge.columns.tolist()[:5]}..., Shape: {df_to_merge.shape}")
-        if 'filename' in df_to_merge.columns:
-             print(f"Sample filenames in df_to_merge: {df_to_merge['filename'].head().tolist()}")
+        df_name_for_log = [k for k,v in feature_df_map.items() if v is df_to_merge]
+        df_name_for_log = df_name_for_log[0] if df_name_for_log else f"DF_{i+1}"
+
+        print(f"Merging with DataFrame {df_name_for_log}: Columns: {df_to_merge.columns.tolist()[:5]}..., Shape: {df_to_merge.shape}")
         
-        # Pre-merge check for common filenames
         common_filenames = set(final_df['filename']).intersection(set(df_to_merge['filename']))
         if not common_filenames:
-            print(f"CRITICAL WARNING: No common filenames between current merged DataFrame and the next one. Merge will result in empty. Skipping this merge.")
-            continue # Skip this merge if no common filenames to prevent emptying final_df prematurely
+            print(f"CRITICAL WARNING: No common filenames between current merged DataFrame and {df_name_for_log}. Merge will result in empty. Skipping this merge.")
+            continue 
 
         final_df = pd.merge(final_df, df_to_merge, on='filename', how='inner')
-        print(f"Shape after merge {i+1}: {final_df.shape}")
+        print(f"Shape after merging with {df_name_for_log}: {final_df.shape}")
         if final_df.empty:
-            print(f"CRITICAL WARNING: DataFrame became empty after merging. Check 'filename' consistency and content of previous DFs.")
+            print(f"CRITICAL WARNING: DataFrame became empty after merging with {df_name_for_log}.")
             break 
             
     if final_df.empty:
@@ -247,7 +234,7 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         expected_label_cols = ['real_label', 'binary_target']
         missing_label_cols_in_final = [col for col in expected_label_cols if col not in final_df.columns]
         if missing_label_cols_in_final:
-            print(f"WARNING: The final merged DataFrame is MISSING these label columns: {missing_label_cols_in_final}")
+            print(f"WARNING: Final merged DataFrame MISSING: {missing_label_cols_in_final}")
         else:
             print(f"SUCCESS: 'real_label' and 'binary_target' columns are present in the final DataFrame.")
     return final_df
@@ -286,8 +273,7 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         print("CRITICAL ERROR: 'filename' column is missing in the final DataFrame!")
         return
     if data_df['filename'].isnull().any():
-        print("Warning: Some 'filename' entries are NaN. This usually indicates an issue in merging.")
-        print(f"Number of NaN filenames: {data_df['filename'].isnull().sum()}")
+        print(f"Warning: {data_df['filename'].isnull().sum()} 'filename' entries are NaN. This usually indicates an issue in merging.")
     if data_df['filename'].duplicated().any():
         print(f"Warning: {data_df['filename'].duplicated().sum()} duplicate filenames found. Consolidating by keeping the first occurrence.")
         data_df = data_df.drop_duplicates(subset=['filename'], keep='first').reset_index(drop=True)
@@ -324,7 +310,7 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
     elif 'real_label' not in data_df.columns:
         data_df['real_label'] = data_df['label'].map({0: 'derived_non-cancer', 1: 'derived_cancer'})
 
-    if 'c_dominant_channel' in data_df.columns:
+    if 'c_dominant_channel' in data_df.columns: # From feature C
         print("\nOne-hot encoding 'c_dominant_channel'...")
         try:
             data_df = pd.get_dummies(data_df, columns=['c_dominant_channel'], prefix='c_dom_channel', dummy_na=False)
@@ -343,7 +329,7 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
     if not feature_columns:
         print("CRITICAL ERROR: No feature columns identified. Cannot train model.")
         return
-    print(f"\nUsing {len(feature_columns)} feature columns for training: {feature_columns[:10]}...")
+    print(f"\nUsing {len(feature_columns)} feature columns for training. First 10: {feature_columns[:10]}...")
 
     x_all = data_df[feature_columns].copy()
     y_all = data_df["label"].copy() 
@@ -413,7 +399,6 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         print(f"\nBest Model on Test Set: {best_model_name}, Test Accuracy: {test_acc:.4f}")
         print(f"Confusion Matrix:\n{cm_display}\nClassification Report:\n{cls_report_str}")
 
-        # Reporting
         test_results_df = pd.DataFrame({
             'filename': filenames_test.reset_index(drop=True).values,
             'true_label_encoded': y_test.reset_index(drop=True).values,
@@ -425,7 +410,7 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
             test_results_df[f'proba_{class_names_for_report[0]}'] = y_test_pred_proba[:, 0]
             test_results_df[f'proba_{class_names_for_report[1]}'] = y_test_pred_proba[:, 1]
         
-        test_details_csv_path = os.path.join(os.path.dirname(result_path), f"{os.path.splitext(os.path.basename(result_path))[0]}_predictions_details.csv") # _extended already in result_path
+        test_details_csv_path = os.path.join(os.path.dirname(result_path), f"{os.path.splitext(os.path.basename(result_path))[0]}_predictions_details.csv") 
         test_results_df.to_csv(test_details_csv_path, index=False)
         print(f"Detailed test predictions saved to {test_details_csv_path}")
 
@@ -444,7 +429,7 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
                     summary_report_data[f'{avg_type.replace(" ", "_")}_{metric}_test'] = cls_report_dict[avg_type][metric]
 
         results_summary_df = pd.DataFrame([summary_report_data])
-        results_summary_df.to_csv(result_path, index=False) # result_path already distinguished
+        results_summary_df.to_csv(result_path, index=False) 
         print(f"Summary model evaluation results saved to {result_path}")
 
     except Exception as e_model:
@@ -458,17 +443,19 @@ if __name__ == "__main__":
     mask_img_dir = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\masks" 
     labels_csv_path = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\2025-FYP-Final\data\filtered_metadata_img_id_first.csv"
     
-    output_feature_csv_dir = "./result_extended" # Changed output directory for extended features
+    # Changed output directory for extended features to keep them separate
+    output_feature_csv_dir = "./result_extended" 
     os.makedirs(output_feature_csv_dir, exist_ok=True)
     
-    merged_csv_filename = "dataset_extended_features_ABC_H_BV.csv" # Changed CSV name
+    # New filename for the dataset with extended features
+    merged_csv_filename = "dataset_extended_features_ABC_H_BV.csv" 
     output_csv_path = os.path.join(output_feature_csv_dir, merged_csv_filename)
     
-    model_result_filename = "model_evaluation_extended_summary.csv" # Changed result summary name
+    # New model result filename for extended features
+    model_result_filename = "model_evaluation_extended_summary.csv" 
     result_path = os.path.join(output_feature_csv_dir, model_result_filename)
     
     try:
-        # Set recreate_features=True to regenerate hair-removed images and all features
         main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, result_path, recreate_features=True) 
     except Exception as e:
         print(f"Error running main script: {e}")
