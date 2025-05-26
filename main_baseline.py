@@ -261,7 +261,7 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         return
 
     print("\n--- Merged Dataset Information ---")
-    data_df.info() # This will show if 'binary_target' and 'real_label' are present after create_feature_dataset
+    data_df.info() 
     print("\nFirst 5 rows of the merged dataset:")
     print(data_df.head())
     
@@ -272,18 +272,16 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         print("Warning: Some 'filename' entries are NaN. This usually indicates an issue in merging.")
     if data_df['filename'].duplicated().any():
         print("Warning: Duplicate filenames found. Consolidating by keeping the first occurrence.")
-        data_df = data_df.drop_duplicates(subset=['filename'], keep='first')
+        data_df = data_df.drop_duplicates(subset=['filename'], keep='first').reset_index(drop=True) # Add reset_index
 
 
     print("\n--- MODEL TRAINING AND EVALUATION ---")
     
-    # 1. Label Preparation (Binary: 0 for non-cancer, 1 for cancer)
     if 'binary_target' not in data_df.columns:
-        # Fallback if 'binary_target' is somehow missing but 'real_label' (or 'diagnostic') is there
         source_label_col = None
         if 'real_label' in data_df.columns:
             source_label_col = 'real_label'
-        elif 'diagnostic' in data_df.columns: # Check for 'diagnostic' if 'real_label' isn't there
+        elif 'diagnostic' in data_df.columns: 
             source_label_col = 'diagnostic'
             print("Warning: 'binary_target' and 'real_label' not found. Using 'diagnostic' to create binary labels.")
         
@@ -291,7 +289,6 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
             print(f"Creating 'binary_target' from '{source_label_col}' column as it was missing.")
             cancer_diagnoses_map = ["BCC", "SCC", "MEL"]
             data_df['binary_target'] = data_df[source_label_col].apply(lambda x: 1 if x in cancer_diagnoses_map else 0)
-            # Ensure 'real_label' exists for reporting if we used 'diagnostic'
             if source_label_col == 'diagnostic' and 'real_label' not in data_df.columns:
                 data_df.rename(columns={'diagnostic': 'real_label'}, inplace=True)
         else:
@@ -308,20 +305,20 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
     print(f"\nBinary classification: 0 -> {class_names_for_report[0]}, 1 -> {class_names_for_report[1]}")
     print(f"Label distribution:\n{data_df['label'].value_counts(normalize=True)}")
 
-    # Ensure 'real_label' is present for reporting if it wasn't the source for binary_target but 'diagnostic' was
     if 'real_label' not in data_df.columns and 'diagnostic' in data_df.columns:
         print("Copying 'diagnostic' to 'real_label' for reporting purposes as 'real_label' was missing.")
         data_df['real_label'] = data_df['diagnostic']
     elif 'real_label' not in data_df.columns:
         print("Warning: 'real_label' (or 'diagnostic') not found for original diagnosis text in reporting.")
-        data_df['real_label'] = data_df['label'].map({0: 'non-cancer_derived', 1: 'cancer_derived'}) # Placeholder
+        # Create a placeholder 'real_label' if absolutely necessary for reporting structure,
+        # though ideally, it should come from the original data.
+        data_df['real_label'] = data_df['label'].map({0: 'derived_non-cancer', 1: 'derived_cancer'})
 
-    # 2. Feature Engineering (One-Hot Encoding for categorical features)
+
     if 'c_dominant_channel' in data_df.columns:
         print("\nOne-hot encoding 'c_dominant_channel'...")
         data_df = pd.get_dummies(data_df, columns=['c_dominant_channel'], prefix='c_dom_channel', dummy_na=False)
     
-    # 3. Identify Feature Columns
     potential_non_feature_cols = ['filename', 'real_label', 'binary_target', 'label', 
                                   'diagnostic', 
                                   'patient_id', 'lesion_id', 'smoke', 'drink', 
@@ -342,8 +339,6 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
     y_all = data_df["label"].copy() 
     current_filenames = data_df['filename'].copy()
 
-
-    # 4. Data Cleaning
     print("\nConverting features to numeric and handling NaNs/Infs...")
     for feat in feature_columns:
         x_all[feat] = pd.to_numeric(x_all[feat], errors='coerce')
@@ -369,14 +364,21 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         print(f"Skipping model training: Not enough unique classes in labels for stratified split or training. Unique labels: {y_all.unique()}")
         return
 
-    # 5. Data Splitting
     print(f"\nSplitting data into train, validation, and test sets (Total samples: {len(x_all)})...")
     try:
+        # Important: Ensure the arrays passed to train_test_split have consistent indexing if they are pandas objects
+        # If x_all, y_all, current_filenames are derived from data_df that had its index reset after drop_duplicates, this should be fine.
         x_train, x_temp, y_train, y_temp, filenames_train, filenames_temp = train_test_split(
-            x_all, y_all, current_filenames, test_size=0.4, random_state=42, stratify=y_all
+            x_all.reset_index(drop=True), 
+            y_all.reset_index(drop=True), 
+            current_filenames.reset_index(drop=True), 
+            test_size=0.4, random_state=42, stratify=y_all.reset_index(drop=True) # Stratify needs array-like without mixed indices
         )
         x_val, x_test, y_val, y_test, filenames_val, filenames_test = train_test_split(
-            x_temp, y_temp, filenames_temp, test_size=0.5, random_state=42, stratify=y_temp
+            x_temp.reset_index(drop=True), 
+            y_temp.reset_index(drop=True), 
+            filenames_temp.reset_index(drop=True), 
+            test_size=0.5, random_state=42, stratify=y_temp.reset_index(drop=True)
         )
     except ValueError as e_split:
         print(f"Error during data splitting: {e_split}. This might be due to too few samples in some classes.")
@@ -387,13 +389,12 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
     print(f"Validation set size: {len(x_val)}")
     print(f"Test set size: {len(x_test)}")
 
-    # 6. Model Training and Selection
     try:
         if x_train.empty or x_val.empty:
             print("Training or validation set is empty before calling train_and_select_model. Skipping.")
             return
-        if y_train.nunique() < 2 or y_val.nunique() < 2:
-            print(f"Training or validation target has less than 2 unique classes. y_train unique: {y_train.nunique()}, y_val unique: {y_val.nunique()}. Skipping model training.")
+        if y_train.nunique() < 2 : # Allow y_val to have 1 class for now, models_evaluation handles it.
+            print(f"Training target has less than 2 unique classes. y_train unique: {y_train.nunique()}. Skipping model training.")
             return
 
         best_model, best_model_name, best_val_acc = train_and_select_model(x_train, y_train, x_val, y_val)
@@ -402,7 +403,6 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
             print("No model was selected. Exiting.")
             return
 
-        # 7. Test Phase
         print("\n--- TEST PHASE ---")
         y_test_pred = best_model.predict(x_test)
         
@@ -427,30 +427,45 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         print(f"Confusion Matrix (Test Set) - Labels {class_names_for_report}:\n{cm_display}")
         print(f"Classification Report (Test Set):\n{cls_report_str}")
 
-        # 8. Reporting
-                # 8. Reporting
-        test_results_df = pd.DataFrame({
-            'filename': filenames_test.values, 
-            'true_label_encoded': y_test.values, 
-            'predicted_label_encoded': y_test_pred, 
-            'true_label_text': y_test.map({0: 'non-cancer', 1: 'cancer'}),
-            'predicted_label_text': pd.Series(y_test_pred).map({0: 'non-cancer', 1: 'cancer'})
-        })
-
-        # Add probabilities
-        if y_test_pred_proba.shape[1] == len(class_names_for_report): 
-            test_results_df[f'proba_{class_names_for_report[0]}'] = y_test_pred_proba[:, 0]
-            test_results_df[f'proba_{class_names_for_report[1]}'] = y_test_pred_proba[:, 1]
-        else:
-            print(f"Warning: Mismatch in probability array shape {y_test_pred_proba.shape} and class_names_for_report length {len(class_names_for_report)}")
-            test_results_df[f'proba_{class_names_for_report[0]}'] = 0.0
-            test_results_df[f'proba_{class_names_for_report[1]}'] = 0.0
+        # 8. Reporting - THIS IS THE CORRECTED SECTION
+        filenames_array = filenames_test.reset_index(drop=True).values # Use .values after reset_index
+        true_labels_encoded_array = y_test.reset_index(drop=True).values # Use .values after reset_index
+        # y_test_pred is already a numpy array
         
+        true_labels_text_array = y_test.reset_index(drop=True).map({0: 'non-cancer', 1: 'cancer'}).values
+        predicted_labels_text_array = pd.Series(y_test_pred).map({0: 'non-cancer', 1: 'cancer'}).values # y_test_pred is numpy array, so Series has fresh index
+
+        test_results_df = pd.DataFrame({
+            'filename': filenames_array,
+            'true_label_encoded': true_labels_encoded_array,
+            'predicted_label_encoded': y_test_pred,
+            'true_label_text': true_labels_text_array,
+            'predicted_label_text': predicted_labels_text_array
+        })
+        
+        # Add probabilities
+        # Ensure y_test_pred_proba rows match the length of other arrays
+        if y_test_pred_proba.shape[0] == len(filenames_array):
+            if y_test_pred_proba.shape[1] == len(class_names_for_report): 
+                test_results_df[f'proba_{class_names_for_report[0]}'] = y_test_pred_proba[:, 0]
+                test_results_df[f'proba_{class_names_for_report[1]}'] = y_test_pred_proba[:, 1]
+            else:
+                print(f"Warning: Mismatch in probability array columns ({y_test_pred_proba.shape[1]}) and class_names_for_report length ({len(class_names_for_report)})")
+                test_results_df[f'proba_{class_names_for_report[0]}'] = 0.0 
+                test_results_df[f'proba_{class_names_for_report[1]}'] = 0.0
+        else:
+            print(f"Warning: Mismatch in y_test_pred_proba rows ({y_test_pred_proba.shape[0]}) and expected test set size ({len(filenames_array)})")
+            # Pad or truncate y_test_pred_proba if necessary, or assign NaNs/zeros
+            # For simplicity, assigning NaNs if there's a length mismatch for probabilities
+            for cn in class_names_for_report:
+                test_results_df[f'proba_{cn}'] = np.nan
+
+
         os.makedirs(os.path.dirname(result_path), exist_ok=True)
         test_details_csv_path = os.path.join(os.path.dirname(result_path), f"{os.path.splitext(os.path.basename(result_path))[0]}_predictions_details.csv")
         test_results_df.to_csv(test_details_csv_path, index=False)
         print(f"Detailed test predictions saved to {test_details_csv_path}")
-        
+
         summary_report_data = {
             'model_name': best_model_name,
             'validation_accuracy': best_val_acc,
@@ -487,7 +502,7 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         import traceback
         traceback.print_exc()
 
-
+# THE if __name__ == "__main__": BLOCK REMAINS THE SAME
 if __name__ == "__main__":
     original_img_dir = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\images"
     mask_img_dir = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\masks" 
