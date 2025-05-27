@@ -1,3 +1,5 @@
+
+
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -5,6 +7,7 @@ import os
 import pandas as pd
 from skimage import segmentation, color
 from sklearn.cluster import KMeans
+from tqdm import tqdm # Import tqdm
 
 def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visualize=False):
     """
@@ -34,20 +37,18 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
         except Exception as e:
             print(f"Error loading existing CSV: {str(e)}")
     
-    # Iterate through all files in the folder
-    for filename in os.listdir(folder_path):
-        # Check if the file is an image
-        file_ext = os.path.splitext(filename)[1].lower()
-        if file_ext not in valid_extensions:
-            continue
-            
+    # Get list of image files
+    image_files = [f for f in os.listdir(folder_path) if os.path.splitext(f)[1].lower() in valid_extensions]
+
+    # Iterate through all files in the folder with a progress bar
+    for filename in tqdm(image_files, desc="Extracting Color Features (C)"): # Wrap loop with tqdm
         # Skip if the image is already in the existing dataframe
         if existing_df is not None and filename in existing_df['filename'].values:
-            print(f"Skipping {filename} - already processed")
+            # print(f"Skipping {filename} - already processed") # Suppress per-file skip message
             continue
             
         image_path = os.path.join(folder_path, filename)
-        print(f"Processing {filename}...")
+        # print(f"Processing {filename}...") # Suppress per-file message
         
         try:
             # Read the image
@@ -79,7 +80,7 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
             
             # Refine mask using color information
             pixels = img.reshape(-1, 3)
-            kmeans = KMeans(n_clusters=2, random_state=0).fit(pixels)
+            kmeans = KMeans(n_clusters=2, random_state=0, n_init='auto').fit(pixels) # Added n_init='auto' for KMeans
             labels = kmeans.labels_.reshape(h, w)
             
             # Determine which label corresponds to the lesion
@@ -94,6 +95,18 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
             
             if len(lesion_pixels) == 0:
                 print(f"No lesion detected in {filename}, skipping...")
+                # Initialize features with default values for skipped files
+                features = {'filename': filename}
+                default_color_features = [
+                    'c_mean_red', 'c_mean_green', 'c_mean_blue', 'c_std_red', 'c_std_green', 'c_std_blue',
+                    'c_mean_hue', 'c_mean_saturation', 'c_mean_value', 'c_std_hue', 'c_std_saturation', 'c_std_value',
+                    'c_red_asymmetry', 'c_green_asymmetry', 'c_blue_asymmetry', 'c_color_variance',
+                    'c_red_green_ratio', 'c_red_blue_ratio', 'c_green_blue_ratio'
+                ]
+                for f in default_color_features:
+                    features[f] = 0.0
+                features['c_dominant_channel'] = 'none' # Or NaN, depending on preference
+                results.append(features)
                 continue
             
             # Calculate color features
@@ -193,7 +206,21 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
             
         except Exception as e:
             print(f"Error processing {filename}: {str(e)}")
-    
+            # Ensure skipped files still have a row in the results DataFrame,
+            # even if features are defaulted to 0 or NaN.
+            # Initialize features with default values for skipped files
+            features = {'filename': filename}
+            default_color_features = [
+                'c_mean_red', 'c_mean_green', 'c_mean_blue', 'c_std_red', 'c_std_green', 'c_std_blue',
+                'c_mean_hue', 'c_mean_saturation', 'c_mean_value', 'c_std_hue', 'c_std_saturation', 'c_std_value',
+                'c_red_asymmetry', 'c_green_asymmetry', 'c_blue_asymmetry', 'c_color_variance',
+                'c_red_green_ratio', 'c_red_blue_ratio', 'c_green_blue_ratio'
+            ]
+            for f in default_color_features:
+                features[f] = 0.0
+            features['c_dominant_channel'] = 'none' # Or NaN, depending on preference
+            results.append(features)
+
     # Convert to DataFrame
     new_df = pd.DataFrame(results)
     
