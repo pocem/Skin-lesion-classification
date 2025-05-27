@@ -3,6 +3,9 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score 
+import time
+from tqdm import tqdm
+from sklearn.metrics import precision_recall_fscore_support
 # confusion_matrix is not used here but good to keep if you expand
 
 def train_and_select_model(x_train, y_train, x_val, y_val):

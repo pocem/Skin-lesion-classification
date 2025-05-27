@@ -1,3 +1,5 @@
+
+
 # In main_extended.py
 import sys
 import os 
@@ -65,20 +67,30 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
     copied_original_count = 0
     hair_removal_error_count = 0
     
+    # NEW: List to store hair counts for each image
+    hair_counts_data = []
+
     for filename in original_image_files:
         original_image_path = os.path.join(original_img_dir, filename)
         target_path_in_hair_removed_dir = os.path.join(hair_removed_img_dir_path, filename)
 
+        # Initialize current hair count for this file; will be updated if processing occurs
+        current_hair_count = 0 
+
         if not recreate_features and os.path.exists(target_path_in_hair_removed_dir):
             processed_files_in_loop +=1
-            continue
+            # If skipping, record 0 hairs removed in this run (as no processing occurred)
+            hair_counts_data.append({'filename': filename, 'num_hairs': current_hair_count})
+            continue # Skip to next file
         
         try:
-            hair_count, saved_img_path, msg = remove_and_save_hairs(
+            # Call hair removal function, which returns the count of hairs found
+            hair_count_for_file, saved_img_path, msg = remove_and_save_hairs(
                 image_path=original_image_path,
                 output_dir=hair_removed_img_dir_path,
                 **hair_params
             )
+            current_hair_count = hair_count_for_file # Capture the returned hair count
             
             if "hairs removed" in msg and saved_img_path and os.path.exists(saved_img_path):
                 inpainted_count += 1
@@ -96,9 +108,11 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         except FileNotFoundError:
              print(f"Error: Original image {filename} not found at {original_image_path} during hair removal loop.")
              hair_removal_error_count +=1
+             # current_hair_count remains 0
         except Exception as e_hair:
             print(f"Error during hair removal for {filename}: {e_hair}. Attempting to copy original.")
             hair_removal_error_count += 1
+            # current_hair_count remains 0
             try:
                 if not os.path.exists(target_path_in_hair_removed_dir):
                     shutil.copy2(original_image_path, target_path_in_hair_removed_dir)
@@ -106,9 +120,16 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
                 processed_files_in_loop += 1
             except Exception as e_copy:
                 print(f"Failed to copy original {filename} after hair removal error: {e_copy}")
-    
+        
+        # Ensure hair count is recorded for every file, even if errors or skips occurred
+        hair_counts_data.append({'filename': filename, 'num_hairs': current_hair_count})
+
     print(f"Hair removal loop summary: Files processed/checked in loop: {processed_files_in_loop}, Actually inpainted: {inpainted_count}, Originals copied: {copied_original_count}, Errors during processing: {hair_removal_error_count}")
     
+    # NEW: Create DataFrame for hair counts
+    df_hair_counts = pd.DataFrame(hair_counts_data)
+    print(f"Hair count features extracted. Shape: {df_hair_counts.shape}")
+
     feature_processing_dir = hair_removed_img_dir_path
     num_images_for_features = len(os.listdir(feature_processing_dir))
     if num_images_for_features == 0:
@@ -124,6 +145,9 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         "Contrast": extract_feature_contrast, # USING CONTRAST
         "BV": extract_feature_BV
     }
+
+    # NEW: Add hair counts DataFrame to the collection of DataFrames to be merged
+    dfs["Hair_Counts"] = df_hair_counts 
 
     for name, func in feature_extractors.items():
         print(f"\nExtracting {name} features from: {feature_processing_dir}")

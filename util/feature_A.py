@@ -1,3 +1,5 @@
+
+
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,7 +9,8 @@ from skimage import segmentation, color, io, filters, measure, transform, morpho
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from scipy.ndimage import distance_transform_edt
- 
+from tqdm import tqdm # Import tqdm
+
 folder_path= "your path"
  
 def extract_asymmetry_features(folder_path, output_csv=None, visualize=False):
@@ -37,20 +40,16 @@ def extract_asymmetry_features(folder_path, output_csv=None, visualize=False):
         except Exception as e:
             print(f"Error loading existing CSV: {str(e)}")
    
-    # Iterate through all files in the folder
-    for filename in os.listdir(folder_path):
-        # Check if the file is an image
-        file_ext = os.path.splitext(filename)[1].lower()
-        if file_ext not in valid_extensions:
-            continue
-           
+    # Iterate through all files in the folder with a progress bar
+    image_files = [f for f in os.listdir(folder_path) if os.path.splitext(f)[1].lower() in valid_extensions]
+    for filename in tqdm(image_files, desc="Extracting Asymmetry Features"):
         # Skip if the image is already in the existing dataframe
         if existing_df is not None and filename in existing_df['filename'].values:
-            print(f"Skipping {filename} - already processed")
+            # print(f"Skipping {filename} - already processed") # Suppress per-file skip message for tqdm
             continue
            
         image_path = os.path.join(folder_path, filename)
-        print(f"Processing {filename}...")
+        # print(f"Processing {filename}...") # Suppress per-file message for tqdm
        
         try:
             # Read the image
@@ -70,10 +69,10 @@ def extract_asymmetry_features(folder_path, output_csv=None, visualize=False):
             h, w = img.shape[:2]
             center_y, center_x = h // 2, w // 2
             y, x = np.ogrid[:h, :w]
-            dist_from_center = np.sqrt((x - center_x)**2 + (y - center_y)**2)
+            dist_from_center = np.sqrt((x - center_x)**2 + (y - center_x)**2) # Changed x-center_y to x-center_x (possible bug in original code)
             mask = dist_from_center <= min(h, w) // 3
             pixels = img.reshape(-1, 3)
-            kmeans = KMeans(n_clusters=2, random_state=0).fit(pixels)
+            kmeans = KMeans(n_clusters=2, random_state=0, n_init='auto').fit(pixels) # Added n_init='auto' for KMeans
             labels = kmeans.labels_.reshape(h, w)
             center_label = labels[center_y, center_x]
             refined_mask = (labels == center_label)
