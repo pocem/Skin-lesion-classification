@@ -1,15 +1,20 @@
-# Core Libraries
-numpy>=1.21.0
-pandas>=1.3.0
-scipy>=1.7.0
-matplotlib>=3.4.0
+# Install all with:
+# pip install -r requirements.txt
 
-# Image Processing
-opencv-python>=4.5.0
-scikit-image>=0.18.0
+# Math and data
+numpy==1.26.4          # math with arrays
+pandas==2.2.2          # work with tables and data
+scipy==1.13.1          # extra math tools
 
-# Machine Learning
-scikit-learn>=1.0.0
+# Charts and plots
+matplotlib==3.9.0      # draw graphs and images
 
-# Typing (Optional)
-typing-extensions>=4.0.0 ; python_version < '3.8'
+# Image processing
+opencv-python==4.9.0.80     # read and edit images
+scikit-image==0.23.2        # advanced image tools (e.g. filters, masks)
+
+# Machine learning
+scikit-learn==1.5.0         # ML models and tools (like KMeans, classifiers)
+
+# Progress bar
+tqdm==4.66.4           # show progress in loops
