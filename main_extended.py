@@ -77,9 +77,13 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         # Initialize current hair count for this file; will be updated if processing occurs
         current_hair_count = 0 
 
+        # This block determines if hair removal is skipped for existing images.
+        # If recreate_features is False AND the target file exists, we skip re-processing.
+        # In this case, we simply record 0 for num_hairs in this run.
+        # To get a true num_hairs for skipped images without re-processing,
+        # you would need a separate caching mechanism for hair counts.
         if not recreate_features and os.path.exists(target_path_in_hair_removed_dir):
             processed_files_in_loop +=1
-            # If skipping, record 0 hairs removed in this run (as no processing occurred)
             hair_counts_data.append({'filename': filename, 'num_hairs': current_hair_count})
             continue # Skip to next file
         
@@ -425,16 +429,20 @@ if __name__ == "__main__":
     output_feature_csv_dir = "./result_extended_contrast" 
     os.makedirs(output_feature_csv_dir, exist_ok=True)
     
-    merged_csv_filename = "dataset_extended_features_ABC_Contrast_BV.csv" 
+    # --- IMPORTANT CHANGE HERE: USING A NEW, UNIQUE FILENAME ---
+    # This ensures a fresh CSV is generated, including the 'num_hairs' column
+    merged_csv_filename = "dataset_extended_features_ABC_Contrast_BV_Hairs_NewRun.csv" 
     output_csv_path = os.path.join(output_feature_csv_dir, merged_csv_filename)
     
-    model_result_filename = "model_evaluation_extended_contrast_summary.csv" 
+    model_result_filename = "model_evaluation_extended_contrast_hairs_NewRun_summary.csv" 
     result_path = os.path.join(output_feature_csv_dir, model_result_filename)
     
     try:
         # Set recreate_features=False to use existing hair-removed images and feature CSV if they exist.
         # Set to True to force regeneration.
-        main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, result_path, recreate_features=False) # Changed to False for testing skip
+        # Since we changed output_csv_path to a NEW name, it will be recreated anyway on the first run,
+        # ensuring hair counts are collected.
+        main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, result_path, recreate_features=False) 
     except Exception as e:
         print(f"Error running main script: {e}")
         import traceback; traceback.print_exc()
