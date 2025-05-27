@@ -3,6 +3,7 @@
 import cv2
 import numpy as np
 import os
+import shutil # Ensure shutil is imported here!
 from tqdm import tqdm # Assuming tqdm is already imported or will be added
 
 def remove_and_save_hairs(
@@ -14,12 +15,12 @@ def remove_and_save_hairs(
     dilation_iterations=2,
     
     inpaint_radius=5,
-    # --- ADJUST THESE PARAMETERS FOR LeniENCY ---
-    min_hair_contours_to_process=1, # Changed from 3: Count even a single detected hair
-    min_contour_area=5,             # Changed from 15: Detect smaller hair segments
+    # --- ADJUST THESE PARAMETERS FOR LeniENCY (Example values, fine-tune for your data) ---
+    min_hair_contours_to_process=1, # Count even a single detected hair
+    min_contour_area=5,             # Detect smaller hair segments
     # You might also adjust threshold_value (lower for more sensitivity)
     # or blackhat_kernel_size for different hair thicknesses.
-    # ---------------------------------------------
+    # ------------------------------------------------------------------------------------
 ):
     os.makedirs(output_dir, exist_ok=True)
     filename = os.path.basename(image_path)
@@ -92,13 +93,11 @@ def process_folder(input_folder, output_folder="output_cleaned"):
                 **params
             )
             if "No significant hairs found" in msg:
-                # print(f"[SKIPPED INPAINT] {filename}: {msg}") # Suppress for tqdm clarity
                 skipped += 1
             else:
-                # print(f"[OK] {filename}: {msg}") # Suppress for tqdm clarity
                 processed += 1
         except Exception as e:
-            print(f"\n[ERROR] {filename}: {e}") # Use \n for clearer error message with tqdm
+            print(f"\n[ERROR] {filename}: {e}")
             errored += 1
 
     print("-" * 40)
