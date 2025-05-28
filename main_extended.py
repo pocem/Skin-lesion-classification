@@ -38,9 +38,6 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
     base_output_dir = os.path.dirname(output_csv_path)
     # The hair_removed_img_dir_path is indeed inside result_extended_contrast
     hair_removed_img_dir_path = os.path.join(base_output_dir, "hair_removed_images_extended_contrast") 
-
-    # IMPORTANT: Ensure old hair-removed images are always removed if recreating features
-    # This ensures num_hairs is always re-calculated from original images.
     if recreate_features:
         print(f"Recreate features is True, removing existing hair-removed images directory: {hair_removed_img_dir_path}")
         if exists(hair_removed_img_dir_path):
