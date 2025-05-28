@@ -1,5 +1,3 @@
-
-
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,7 +5,7 @@ import os
 import pandas as pd
 from skimage import segmentation, color
 from sklearn.cluster import KMeans
-from tqdm import tqdm # Import tqdm
+from tqdm import tqdm 
 
 def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visualize=False):
     """
@@ -22,13 +20,11 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
     Returns:
     pd.DataFrame: DataFrame containing color features for all images
     """
-    # List to store results
+ 
     results = []
     
-    # Supported image extensions
     valid_extensions = ['.jpg', '.jpeg', '.png', '.bmp']
     
-    # Load existing CSV if specified and exists
     existing_df = None
     if output_csv and os.path.exists(output_csv):
         try:
@@ -37,21 +33,17 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
         except Exception as e:
             print(f"Error loading existing CSV: {str(e)}")
     
-    # Get list of image files
     image_files = [f for f in os.listdir(folder_path) if os.path.splitext(f)[1].lower() in valid_extensions]
 
-    # Iterate through all files in the folder with a progress bar
-    for filename in tqdm(image_files, desc="Extracting Color Features (C)"): # Wrap loop with tqdm
-        # Skip if the image is already in the existing dataframe
+    for filename in tqdm(image_files, desc="Extracting Color Features (C)"): 
+       
         if existing_df is not None and filename in existing_df['filename'].values:
-            # print(f"Skipping {filename} - already processed") # Suppress per-file skip message
+        
             continue
             
         image_path = os.path.join(folder_path, filename)
-        # print(f"Processing {filename}...") # Suppress per-file message
         
         try:
-            # Read the image
             img = cv2.imread(image_path)
             if img is None:
                 print(f"Error reading {filename}, skipping...")
@@ -95,7 +87,7 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
             
             if len(lesion_pixels) == 0:
                 print(f"No lesion detected in {filename}, skipping...")
-                # Initialize features with default values for skipped files
+                
                 features = {'filename': filename}
                 default_color_features = [
                     'c_mean_red', 'c_mean_green', 'c_mean_blue', 'c_std_red', 'c_std_green', 'c_std_blue',
@@ -105,7 +97,7 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
                 ]
                 for f in default_color_features:
                     features[f] = 0.0
-                features['c_dominant_channel'] = 'none' # Or NaN, depending on preference
+                features['c_dominant_channel'] = 'none' 
                 results.append(features)
                 continue
             
@@ -115,9 +107,9 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
             # Apply normalization if requested
             if normalize_colors:
                 lesion_pixels = lesion_pixels / 255.0
-                divisor = 1.0  # For normalized ratios
+                divisor = 1.0  
             else:
-                divisor = 1.0  # For non-normalized values
+                divisor = 1.0  
             
             # RGB color space features
             features['c_mean_red'] = np.mean(lesion_pixels[:, 0])
@@ -128,7 +120,6 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
             features['c_std_blue'] = np.std(lesion_pixels[:, 2])
             
             # Convert to HSV for additional features
-            # If already normalized [0,1], no need to divide by 255
             if normalize_colors:
                 hsv_pixels = color.rgb2hsv(lesion_pixels)
             else:
@@ -167,7 +158,6 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
             features['c_color_variance'] = np.sum(np.var(lesion_pixels, axis=0))
             
             # Additional color features
-            # Color ratio features (avoid division by zero)
             features['c_red_green_ratio'] = features['c_mean_red'] / max(features['c_mean_green'], divisor)
             features['c_red_blue_ratio'] = features['c_mean_red'] / max(features['c_mean_blue'], divisor)
             features['c_green_blue_ratio'] = features['c_mean_green'] / max(features['c_mean_blue'], divisor)
@@ -196,7 +186,6 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
                 
                 plt.tight_layout()
                 
-                # Save visualization to a subdirectory
                 vis_dir = os.path.join(folder_path, 'visualizations')
                 os.makedirs(vis_dir, exist_ok=True)
                 plt.savefig(os.path.join(vis_dir, f"vis_{filename}"))
@@ -206,9 +195,7 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
             
         except Exception as e:
             print(f"Error processing {filename}: {str(e)}")
-            # Ensure skipped files still have a row in the results DataFrame,
-            # even if features are defaulted to 0 or NaN.
-            # Initialize features with default values for skipped files
+
             features = {'filename': filename}
             default_color_features = [
                 'c_mean_red', 'c_mean_green', 'c_mean_blue', 'c_std_red', 'c_std_green', 'c_std_blue',
@@ -218,53 +205,37 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
             ]
             for f in default_color_features:
                 features[f] = 0.0
-            features['c_dominant_channel'] = 'none' # Or NaN, depending on preference
+            features['c_dominant_channel'] = 'none' 
             results.append(features)
 
-    # Convert to DataFrame
     new_df = pd.DataFrame(results)
     
-    # Combine with existing data if available
     if existing_df is not None and not new_df.empty:
         combined_df = pd.concat([existing_df, new_df], ignore_index=True)
     elif not new_df.empty:
         combined_df = new_df
     else:
         combined_df = existing_df if existing_df is not None else pd.DataFrame()
-    
 
-    
     return combined_df
-
-# Example usage with all features together in a single CSV:
-"""
-# First extraction (e.g., color features)
-df = extract_feature_C('path_to_images', output_csv='all_features.csv', normalize_colors=True)
-
-# Second extraction (from another function - texture features)
-df = extract_feature_T('path_to_images', output_csv='all_features.csv')
-
-# Third extraction (e.g., shape features)
-df = extract_feature_S('path_to_images', output_csv='all_features.csv')
-"""
 
 if __name__ == "__main__":
     image_folder = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\images" # Example path
-    # This output_csv variable is for the standalone run of feature_C.py
+    
     output_csv_for_standalone_run = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\2025-FYP-Final\result\color_features_standalone.csv"
 
     df = extract_feature_C(
         folder_path=image_folder,
-        output_csv=None,  # Pass None here if you want to handle saving manually after getting the df
+        output_csv=None, 
         normalize_colors=True,
-        visualize=False # Set to False for faster processing unless debugging
+        visualize=False 
     )
 
-    # Save to CSV separately if df is not empty
+   
     if not df.empty:
-        # Ensure the directory for output_csv_for_standalone_run exists
+        
         os.makedirs(os.path.dirname(output_csv_for_standalone_run), exist_ok=True)
-        df.to_csv(output_csv_for_standalone_run, index=False) # Use the defined path
+        df.to_csv(output_csv_for_standalone_run, index=False) 
         print(f"Saved extracted color features (standalone run) to: {output_csv_for_standalone_run}")
         print(df.head())
     else:

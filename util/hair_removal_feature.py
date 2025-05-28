@@ -3,8 +3,8 @@
 import cv2
 import numpy as np
 import os
-import shutil # Ensure shutil is imported here!
-from tqdm import tqdm # Assuming tqdm is already imported or will be added
+import shutil 
+from tqdm import tqdm 
 
 def remove_and_save_hairs(
     image_path,
@@ -15,12 +15,8 @@ def remove_and_save_hairs(
     dilation_iterations=2,
     
     inpaint_radius=5,
-    # --- ADJUST THESE PARAMETERS FOR LeniENCY (Example values, fine-tune for your data) ---
     min_hair_contours_to_process=1, # Count even a single detected hair
     min_contour_area=5,             # Detect smaller hair segments
-    # You might also adjust threshold_value (lower for more sensitivity)
-    # or blackhat_kernel_size for different hair thicknesses.
-    # ------------------------------------------------------------------------------------
 ):
     os.makedirs(output_dir, exist_ok=True)
     filename = os.path.basename(image_path)
@@ -46,9 +42,8 @@ def remove_and_save_hairs(
     output_path = os.path.join(output_dir, filename)
 
     if hair_count < min_hair_contours_to_process:
-        # Not enough significant hairs detected to apply inpainting
-        # Simply copy the original image to the output directory
-        shutil.copy2(image_path, output_path) # Ensure original is always copied if not inpainted
+        
+        shutil.copy2(image_path, output_path) 
         return 0, output_path, "No significant hairs found, original image copied."
 
     inpainted_image = cv2.inpaint(img, dilated_mask, inpaint_radius, cv2.INPAINT_TELEA)
@@ -71,18 +66,18 @@ def process_folder(input_folder, output_folder="output_cleaned"):
         "dilation_kernel_size": (3, 3),
         "dilation_iterations": 2,
         "inpaint_radius": 5,
-        "min_hair_contours_to_process": 1, # Leniency
-        "min_contour_area": 5             # Leniency
+        "min_hair_contours_to_process": 1, 
+        "min_contour_area": 5           
     }
 
     processed = 0
-    skipped = 0 # Now this means skipped INPAINTING, but original copied
+    skipped = 0 
     errored = 0
     total = 0
 
     image_files = [f for f in os.listdir(input_folder) if f.lower().endswith(supported_extensions)]
     
-    for filename in tqdm(image_files, desc="Hair Removal Standalone Processing"): # Add tqdm to standalone run
+    for filename in tqdm(image_files, desc="Hair Removal Standalone Processing"): 
         total += 1
         image_path = os.path.join(input_folder, filename)
 
@@ -106,19 +101,16 @@ def process_folder(input_folder, output_folder="output_cleaned"):
     print(f"Images where original was copied (no/few hairs): {skipped}")
     print(f"Errors during processing: {errored}")
 
-
-# --- Run it ---
 if __name__ == "__main__":
     input_folder = r"C:\Users\laura\Documents\University\2nd semester\Projects in Data Science\Projects\Final Project\matched_pairs\images"
     output_folder = r"C:\Users\laura\Documents\University\2nd semester\Projects in Data Science\Projects\Final Project\images after hair removal"
     
-    # Ensure the output directory for hair removal exists before processing
     os.makedirs(output_folder, exist_ok=True)
     
     # Delete previous hair-removed images to ensure a fresh run for testing
     if os.path.exists(output_folder):
         print(f"Deleting existing hair-removed images folder: {output_folder}")
         shutil.rmtree(output_folder)
-        os.makedirs(output_folder, exist_ok=True) # Recreate empty folder
+        os.makedirs(output_folder, exist_ok=True) 
 
     process_folder(input_folder, output_folder)

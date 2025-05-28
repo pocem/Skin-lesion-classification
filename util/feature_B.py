@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import pandas as pd
 from typing import Dict, List, Optional
-from tqdm import tqdm  # for progress bar
+from tqdm import tqdm  
 
 def extract_border_features_from_folder(
     folder_path: str,
@@ -25,7 +25,7 @@ def extract_border_features_from_folder(
     Returns:
         DataFrame containing border features for all images
     """
-    # Supported image extensions
+    
     valid_extensions = ('.jpg', '.jpeg', '.png', '.bmp')
     image_files = [f for f in os.listdir(folder_path) 
                   if f.lower().endswith(valid_extensions)]
@@ -48,14 +48,13 @@ def extract_border_features_from_folder(
             print(f"\nError processing {filename}: {str(e)}")
             continue
     
-    # Create DataFrame
+
     df = pd.DataFrame(features_list)
     
-    # Reorder columns to have filename first
+
     cols = ['filename'] + [col for col in df.columns if col != 'filename']
     df = df[cols]
     
-    # Save to CSV if requested
     if output_csv:
         df.to_csv(output_csv, index=False)
         print(f"\nSaved features to {output_csv}")
@@ -72,17 +71,17 @@ def extract_border_features(
     Enhanced border feature extraction focused on essential border characteristics.
     """
     try:
-        # --- Image Loading with Validation ---
+        
         img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
         if img is None:
             raise FileNotFoundError(f"Image not found or corrupted: {image_path}")
         
-        # Resize for consistency (optional)
+       
         img = cv2.resize(img, (256, 256))
         
-        # --- Adaptive Thresholding ---
+        
         if block_size % 2 == 0:
-            block_size += 1  # Ensure odd block size
+            block_size += 1  
         img_adapt = cv2.adaptiveThreshold(
             img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
             cv2.THRESH_BINARY_INV, block_size, 2
@@ -182,16 +181,16 @@ def calculate_border_score(df: pd.DataFrame) -> pd.DataFrame:
     
     return df_copy
 
-# Example usage
+
 if __name__ == "__main__":
-    # Process all images in a folder
+
     folder_path = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\masks"
     output_csv = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\2025-FYP-Final\resultborder_features.csv"
     
     df = extract_border_features_from_folder(
         folder_path=folder_path,
         output_csv=output_csv,
-        visualize=False  # Set to True to see processing steps
+        visualize=False  
     )
     
     # Calculate border scores
@@ -199,8 +198,7 @@ if __name__ == "__main__":
     
     print("\nBorder scores:")
     print(df_with_scores[['filename', 'border_score']].head())
-    
-    # Save with border scores
+
     df_with_scores.to_csv(output_csv.replace('.csv', '_with_scores.csv'), index=False)
     print(f"\nSaved features with border scores to {output_csv.replace('.csv', '_with_scores.csv')}")
     

@@ -1,6 +1,3 @@
-
-
-# In main_extended.py
 import sys
 import os 
 from os.path import join, exists
@@ -12,14 +9,14 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
-import shutil # Ensure shutil is imported here
+import shutil 
 
 # Import custom modules
 try:
     from util.feature_A import extract_asymmetry_features
     from util.feature_B import extract_border_features_from_folder, calculate_border_score
     from util.feature_C import extract_feature_C
-    from util.contrast_feature import extract_feature_contrast # USE CONTRAST
+    from util.contrast_feature import extract_feature_contrast 
     from util.blue_veil import extract_feature_BV
     from util.hair_removal_feature import remove_and_save_hairs 
     from models_evaluation import train_and_select_model
@@ -36,11 +33,9 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         raise FileNotFoundError(f"Original image directory not found: {original_img_dir}")
 
     base_output_dir = os.path.dirname(output_csv_path)
-    # The hair_removed_img_dir_path is indeed inside result_extended_contrast
+
     hair_removed_img_dir_path = os.path.join(base_output_dir, "hair_removed_images_extended_contrast") 
 
-    # IMPORTANT: Ensure old hair-removed images are always removed if recreating features
-    # This ensures num_hairs is always re-calculated from original images.
     if recreate_features:
         print(f"Recreate features is True, removing existing hair-removed images directory: {hair_removed_img_dir_path}")
         if exists(hair_removed_img_dir_path):
@@ -73,31 +68,27 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
     copied_original_count = 0
     hair_removal_error_count = 0
     
-    # NEW: List to store hair counts for each image
     hair_counts_data = []
 
     for filename in tqdm(original_image_files, desc="Performing Hair Removal"):
         original_image_path = os.path.join(original_img_dir, filename)
         target_path_in_hair_removed_dir = os.path.join(hair_removed_img_dir_path, filename)
 
-        # Initialize current hair count for this file
         current_hair_count = 0 
 
-        # This skip logic is applied: if not recreating features AND the file already exists,
-        # we assume its hair count was captured in a previous run and assign 0 for *this* run's processing
         if not recreate_features and os.path.exists(target_path_in_hair_removed_dir):
             hair_counts_data.append({'filename': filename, 'num_hairs': current_hair_count})
             processed_files_in_loop +=1
-            continue # Skip to next file
+            continue 
         
         try:
-            # Call hair removal function, which returns the count of hairs found
+            
             hair_count_for_file, saved_img_path, msg = remove_and_save_hairs(
                 image_path=original_image_path,
                 output_dir=hair_removed_img_dir_path,
                 **hair_params
             )
-            current_hair_count = hair_count_for_file # Capture the returned hair count
+            current_hair_count = hair_count_for_file 
             
             if "hairs removed" in msg and saved_img_path and os.path.exists(saved_img_path):
                 inpainted_count += 1
@@ -115,11 +106,11 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         except FileNotFoundError:
              print(f"\nError: Original image {filename} not found at {original_image_path} during hair removal loop.")
              hair_removal_error_count +=1
-             # current_hair_count remains 0
+            
         except Exception as e_hair:
             print(f"\nError during hair removal for {filename}: {e_hair}. Attempting to copy original.")
             hair_removal_error_count += 1
-            # current_hair_count remains 0
+           
             try:
                 if not os.path.exists(target_path_in_hair_removed_dir):
                     shutil.copy2(original_image_path, target_path_in_hair_removed_dir)
@@ -128,12 +119,11 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
             except Exception as e_copy:
                 print(f"\nFailed to copy original {filename} after hair removal error: {e_copy}")
         
-        # Ensure hair count is recorded for every file, even if errors or skips occurred
         hair_counts_data.append({'filename': filename, 'num_hairs': current_hair_count})
 
     print(f"\nHair removal loop summary: Files processed/checked in loop: {processed_files_in_loop}, Actually inpainted: {inpainted_count}, Originals copied: {copied_original_count}, Errors during processing: {hair_removal_error_count}")
     
-    # NEW: Create DataFrame for hair counts
+
     df_hair_counts = pd.DataFrame(hair_counts_data)
     print(f"Hair count features extracted. Shape: {df_hair_counts.shape}")
 
@@ -149,11 +139,11 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         "A": extract_asymmetry_features,
         "B_raw": extract_border_features_from_folder, 
         "C": extract_feature_C,
-        "Contrast": extract_feature_contrast, # USING CONTRAST
+        "Contrast": extract_feature_contrast, 
         "BV": extract_feature_BV
     }
 
-    # NEW: Add hair counts DataFrame to the collection of DataFrames to be merged
+    
     dfs["Hair_Counts"] = df_hair_counts 
 
     for name, func in feature_extractors.items():
@@ -255,10 +245,9 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         raise ValueError("original_img_dir and output_csv_path must be provided.")
 
     data_df = None
-    # Always force recreation of the entire dataset for consistency with hair counting.
-    # This ensures that the hair-removed images are always fresh.
+
     print(f"Force recreating entire dataset for consistent hair count extraction.")
-    # If the output CSV exists, delete it to ensure a fresh start.
+
     if exists(output_csv_path):
         print(f"Deleting existing output CSV: {output_csv_path}")
         os.remove(output_csv_path)
@@ -304,7 +293,7 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
     class_names_for_report = ['non-cancer', 'cancer'] 
     print(f"\nLabel distribution:\n{data_df['label'].value_counts(normalize=True)}")
 
-    if 'real_label' not in data_df.columns: # Ensure 'real_label' exists for reporting
+    if 'real_label' not in data_df.columns: 
         data_df['real_label'] = data_df['label'].map({0: 'derived_non-cancer', 1: 'derived_cancer'})
 
     if 'c_dominant_channel' in data_df.columns:
@@ -423,15 +412,13 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         import traceback; traceback.print_exc()
 
 if __name__ == "__main__":
-    original_img_dir = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\images"
-    mask_img_dir = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\masks" 
-    labels_csv_path = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\2025-FYP-Final\data\filtered_metadata_img_id_first.csv"
+    original_img_dir = r"C:\Users\misog\SCHOOL\2nd semester\Projects in Data Science\matched_pairs\images"
+    mask_img_dir = r"C:\Users\misog\SCHOOL\2nd semester\Projects in Data Science\masks" 
+    labels_csv_path = r"C:\Users\misog\SCHOOL\2nd semester\Projects in Data Science\final project\2025-FYP-Final\data\filtered_metadata_img_id_first.csv"
     
     output_feature_csv_dir = "./result_extended_contrast" 
     os.makedirs(output_feature_csv_dir, exist_ok=True)
     
-    # These filenames will be overwritten on each run due to recreate_features=True
-    # DO NOT CHANGE THESE NAMES FOR SUBSEQUENT RUNS IF YOU WANT OVERWRITING
     merged_csv_filename = "dataset_extended_features_ABC_Contrast_BV_Hairs_Definitive.csv" 
     output_csv_path = os.path.join(output_feature_csv_dir, merged_csv_filename)
     
@@ -439,9 +426,6 @@ if __name__ == "__main__":
     result_path = os.path.join(output_feature_csv_dir, model_result_filename)
     
     try:
-        # Set recreate_features=True to force regeneration of hair-removed images and feature CSV.
-        # This is CRUCIAL to get accurate hair counts if the processed images exist from a prior run.
-        # It also ensures the output CSVs (defined above) are overwritten.
         main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, result_path, recreate_features=True) 
     except Exception as e:
         print(f"Error running main script: {e}")

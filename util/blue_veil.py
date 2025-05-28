@@ -5,9 +5,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
-from skimage import color # Using skimage.color for HSV conversion
+from skimage import color 
 from sklearn.cluster import KMeans
-from tqdm import tqdm # Import tqdm
+from tqdm import tqdm 
 
 def extract_feature_BV(folder_path, output_csv=None, normalize_colors=True, visualize=False):
     """
@@ -38,13 +38,11 @@ def extract_feature_BV(folder_path, output_csv=None, normalize_colors=True, visu
 
     image_files = [f for f in os.listdir(folder_path) if os.path.splitext(f)[1].lower() in valid_extensions]
 
-    for filename in tqdm(image_files, desc="Extracting Blue Veil Features"): # Wrap loop with tqdm
+    for filename in tqdm(image_files, desc="Extracting Blue Veil Features"): 
         if existing_df is not None and filename in existing_df['filename'].values:
-            # print(f"Skipping {filename} - already processed for Blue Veil features in existing CSV.") # Suppress per-file skip message
             continue
             
         image_path = os.path.join(folder_path, filename)
-        # print(f"Processing {filename} for Blue Veil features...") # Suppress per-file message
         
         current_features = {'filename': filename} # Initialize features for this file
 
@@ -52,14 +50,14 @@ def extract_feature_BV(folder_path, output_csv=None, normalize_colors=True, visu
             img_bgr = cv2.imread(image_path)
             if img_bgr is None:
                 print(f"Error reading {filename}, skipping...")
-                continue # Skip this file
+                continue 
                 
             img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
             img_resized = cv2.resize(img_rgb, (256, 256), interpolation=cv2.INTER_AREA)
             
             h, w = img_resized.shape[:2]
 
-            # Step 1: Segment the lesion (similar to extract_feature_C)
+            # Step 1: Segment the lesion 
             center_y, center_x = h // 2, w // 2
             y_coords, x_coords = np.ogrid[:h, :w]
             dist_from_center = np.sqrt((x_coords - center_x)**2 + (y_coords - center_y)**2)
@@ -296,10 +294,3 @@ if __name__ == "__main__":
         print(df_bv_features.head())
     else:
         print("\nNo Blue Veil features were extracted or loaded.")
-
-    # To integrate with main_baseline.py:
-    # In main_baseline.py, you would typically call:
-    # df_bv = extract_feature_BV(image_folder, output_csv=None, normalize_colors=True, visualize=False)
-    # And then merge df_bv with your main features DataFrame.
-    # The `output_csv` parameter within `extract_feature_BV` is more for its standalone execution
-    # or if you maintain separate CSVs per feature type before a final merge.

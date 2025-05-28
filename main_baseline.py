@@ -1,4 +1,3 @@
-# In main_baseline.py
 import sys
 import os
 from os.path import join, exists
@@ -74,21 +73,20 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         print(f"Error during Color feature extraction: {e}")
         df_C = pd.DataFrame(columns=['filename'])
 
-    # --- Load Labels / Metadata ---
+   
     metadata_df = None
     if labels_csv and exists(labels_csv):
         print(f"\nLoading metadata from {labels_csv}")
         try:
             raw_metadata_df = pd.read_csv(labels_csv)
             print(f"Raw metadata loaded. Columns: {raw_metadata_df.columns.tolist()}")
-            # print(f"First 5 rows of raw metadata:\n{raw_metadata_df.head()}") # DEBUG
+            
 
             if 'img_id' in raw_metadata_df.columns:
                 print("Renaming 'img_id' to 'filename' in metadata.")
                 raw_metadata_df = raw_metadata_df.rename(columns={'img_id': 'filename'})
             
-            # Use 'diagnostic' as the source for 'real_label'
-            label_column_name = 'diagnostic' # THIS IS THE KEY CHANGE FOR INPUT CSV
+            label_column_name = 'diagnostic' 
 
             if 'filename' not in raw_metadata_df.columns:
                 print(f"ERROR: Metadata CSV must contain 'filename' (or 'img_id') column. Cannot proceed with metadata.")
@@ -99,7 +97,7 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
             else:
                 print(f"'filename' and '{label_column_name}' columns found in metadata.")
                 
-                # Rename the source label column to 'real_label' for internal consistency
+                
                 if label_column_name != 'real_label':
                     raw_metadata_df.rename(columns={label_column_name: 'real_label'}, inplace=True)
                     print(f"Renamed '{label_column_name}' column to 'real_label' for internal consistency.")
@@ -111,10 +109,6 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
                 
                 cols_to_keep_from_metadata = ['filename', 'real_label', 'binary_target']
                 
-                # Add other metadata columns that you want to use as features directly
-                # Example: if 'age' from metadata was a feature, add 'age' to cols_to_keep_from_metadata
-                # For now, just keeping the essential ones for labeling.
-
                 missing_cols = [col for col in cols_to_keep_from_metadata if col not in raw_metadata_df.columns]
                 if missing_cols:
                     print(f"ERROR: The following essential columns are missing from raw_metadata_df after processing: {missing_cols}")
@@ -124,8 +118,7 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
                     print(f"Metadata (filename, real_label, binary_target) selected. Shape: {metadata_df.shape[0]} entries. Columns: {metadata_df.columns.tolist()}")
                     if metadata_df.empty:
                         print("Warning: metadata_df became empty after selecting columns. Check metadata CSV content and 'filename' consistency.")
-                    # print(f"First 5 rows of selected metadata_df:\n{metadata_df.head()}") # DEBUG
-
+                    
         except Exception as e:
             print(f"Error loading metadata or creating binary_target: {e}")
             metadata_df = None 
@@ -133,7 +126,7 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         print("\nNo metadata file provided or file doesn't exist. Proceeding without metadata.")
         metadata_df = None
 
-    # --- Merge DataFrames ---
+    
     print("\nMerging feature DataFrames...")
     
     dataframes_to_merge = []
@@ -186,11 +179,11 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         final_df = dataframes_to_merge[0]
         if metadata_df is not None and final_df is metadata_df :
              print("This single DataFrame is metadata_df. No features were extracted or added.")
-        elif feature_dfs_added == 1 and metadata_df is None: # Only one feature df, no metadata
+        elif feature_dfs_added == 1 and metadata_df is None: 
              print("This single DataFrame is a feature DataFrame. Labels will be missing as metadata_df was not included or processed.")
-        elif feature_dfs_added == 0 and metadata_df is not None: # Should have been caught by the first print.
+        elif feature_dfs_added == 0 and metadata_df is not None: 
             print("This single DataFrame is metadata_df, means no feature DataFrames were valid to add.")
-        else: # Should not happen based on logic, but for safety
+        else:
             print("Unclear state with a single DataFrame.")
              
     elif len(dataframes_to_merge) > 1:
@@ -231,8 +224,8 @@ def create_feature_dataset(original_img_dir, mask_img_dir, output_csv_path, labe
         else:
             print(f"SUCCESS: 'real_label' and 'binary_target' columns are present in the final DataFrame.")
         
-        # Exclude filename and all label-related columns for feature count
-        non_feature_for_count = ['filename', 'real_label', 'binary_target', 'label'] # 'label' is created in main()
+
+        non_feature_for_count = ['filename', 'real_label', 'binary_target', 'label'] 
         feature_cols = [col for col in final_df.columns if col not in non_feature_for_count]
         print(f"Dataset contains {len(feature_cols)} potential feature columns.")
     
@@ -272,7 +265,7 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         print("Warning: Some 'filename' entries are NaN. This usually indicates an issue in merging.")
     if data_df['filename'].duplicated().any():
         print("Warning: Duplicate filenames found. Consolidating by keeping the first occurrence.")
-        data_df = data_df.drop_duplicates(subset=['filename'], keep='first').reset_index(drop=True) # Add reset_index
+        data_df = data_df.drop_duplicates(subset=['filename'], keep='first').reset_index(drop=True) 
 
 
     print("\n--- MODEL TRAINING AND EVALUATION ---")
@@ -310,8 +303,6 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         data_df['real_label'] = data_df['diagnostic']
     elif 'real_label' not in data_df.columns:
         print("Warning: 'real_label' (or 'diagnostic') not found for original diagnosis text in reporting.")
-        # Create a placeholder 'real_label' if absolutely necessary for reporting structure,
-        # though ideally, it should come from the original data.
         data_df['real_label'] = data_df['label'].map({0: 'derived_non-cancer', 1: 'derived_cancer'})
 
 
@@ -366,13 +357,12 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
 
     print(f"\nSplitting data into train, validation, and test sets (Total samples: {len(x_all)})...")
     try:
-        # Important: Ensure the arrays passed to train_test_split have consistent indexing if they are pandas objects
-        # If x_all, y_all, current_filenames are derived from data_df that had its index reset after drop_duplicates, this should be fine.
+        
         x_train, x_temp, y_train, y_temp, filenames_train, filenames_temp = train_test_split(
             x_all.reset_index(drop=True), 
             y_all.reset_index(drop=True), 
             current_filenames.reset_index(drop=True), 
-            test_size=0.4, random_state=42, stratify=y_all.reset_index(drop=True) # Stratify needs array-like without mixed indices
+            test_size=0.4, random_state=42, stratify=y_all.reset_index(drop=True) # Stratify
         )
         x_val, x_test, y_val, y_test, filenames_val, filenames_test = train_test_split(
             x_temp.reset_index(drop=True), 
@@ -427,13 +417,13 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         print(f"Confusion Matrix (Test Set) - Labels {class_names_for_report}:\n{cm_display}")
         print(f"Classification Report (Test Set):\n{cls_report_str}")
 
-        # 8. Reporting - THIS IS THE CORRECTED SECTION
-        filenames_array = filenames_test.reset_index(drop=True).values # Use .values after reset_index
-        true_labels_encoded_array = y_test.reset_index(drop=True).values # Use .values after reset_index
-        # y_test_pred is already a numpy array
+ 
+        filenames_array = filenames_test.reset_index(drop=True).values 
+        true_labels_encoded_array = y_test.reset_index(drop=True).values 
+ 
         
         true_labels_text_array = y_test.reset_index(drop=True).map({0: 'non-cancer', 1: 'cancer'}).values
-        predicted_labels_text_array = pd.Series(y_test_pred).map({0: 'non-cancer', 1: 'cancer'}).values # y_test_pred is numpy array, so Series has fresh index
+        predicted_labels_text_array = pd.Series(y_test_pred).map({0: 'non-cancer', 1: 'cancer'}).values 
 
         test_results_df = pd.DataFrame({
             'filename': filenames_array,
@@ -443,8 +433,7 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
             'predicted_label_text': predicted_labels_text_array
         })
         
-        # Add probabilities
-        # Ensure y_test_pred_proba rows match the length of other arrays
+
         if y_test_pred_proba.shape[0] == len(filenames_array):
             if y_test_pred_proba.shape[1] == len(class_names_for_report): 
                 test_results_df[f'proba_{class_names_for_report[0]}'] = y_test_pred_proba[:, 0]
@@ -455,8 +444,7 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
                 test_results_df[f'proba_{class_names_for_report[1]}'] = 0.0
         else:
             print(f"Warning: Mismatch in y_test_pred_proba rows ({y_test_pred_proba.shape[0]}) and expected test set size ({len(filenames_array)})")
-            # Pad or truncate y_test_pred_proba if necessary, or assign NaNs/zeros
-            # For simplicity, assigning NaNs if there's a length mismatch for probabilities
+
             for cn in class_names_for_report:
                 test_results_df[f'proba_{cn}'] = np.nan
 
@@ -502,7 +490,6 @@ def main(original_img_dir, mask_img_dir, labels_csv_path, output_csv_path, resul
         import traceback
         traceback.print_exc()
 
-# THE if __name__ == "__main__": BLOCK REMAINS THE SAME
 if __name__ == "__main__":
     original_img_dir = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\images"
     mask_img_dir = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\masks" 

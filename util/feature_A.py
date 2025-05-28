@@ -1,5 +1,3 @@
-
-
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,7 +7,7 @@ from skimage import segmentation, color, io, filters, measure, transform, morpho
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from scipy.ndimage import distance_transform_edt
-from tqdm import tqdm # Import tqdm
+from tqdm import tqdm 
 
 folder_path= "your path"
  
@@ -25,10 +23,10 @@ def extract_asymmetry_features(folder_path, output_csv=None, visualize=False):
     Returns:
     pd.DataFrame: DataFrame containing asymmetry features for all images
     """
-    # List to store results
+    
     results = []
    
-    # Supported image extensions
+    
     valid_extensions = ['.jpg', '.jpeg', '.png', '.bmp']
    
     # Load existing CSV if specified and exists
@@ -43,13 +41,12 @@ def extract_asymmetry_features(folder_path, output_csv=None, visualize=False):
     # Iterate through all files in the folder with a progress bar
     image_files = [f for f in os.listdir(folder_path) if os.path.splitext(f)[1].lower() in valid_extensions]
     for filename in tqdm(image_files, desc="Extracting Asymmetry Features"):
-        # Skip if the image is already in the existing dataframe
+        
         if existing_df is not None and filename in existing_df['filename'].values:
-            # print(f"Skipping {filename} - already processed") # Suppress per-file skip message for tqdm
+           
             continue
            
         image_path = os.path.join(folder_path, filename)
-        # print(f"Processing {filename}...") # Suppress per-file message for tqdm
        
         try:
             # Read the image
@@ -69,10 +66,10 @@ def extract_asymmetry_features(folder_path, output_csv=None, visualize=False):
             h, w = img.shape[:2]
             center_y, center_x = h // 2, w // 2
             y, x = np.ogrid[:h, :w]
-            dist_from_center = np.sqrt((x - center_x)**2 + (y - center_x)**2) # Changed x-center_y to x-center_x (possible bug in original code)
+            dist_from_center = np.sqrt((x - center_x)**2 + (y - center_x)**2)
             mask = dist_from_center <= min(h, w) // 3
             pixels = img.reshape(-1, 3)
-            kmeans = KMeans(n_clusters=2, random_state=0, n_init='auto').fit(pixels) # Added n_init='auto' for KMeans
+            kmeans = KMeans(n_clusters=2, random_state=0, n_init='auto').fit(pixels) 
             labels = kmeans.labels_.reshape(h, w)
             center_label = labels[center_y, center_x]
             refined_mask = (labels == center_label)
@@ -100,19 +97,14 @@ def extract_asymmetry_features(folder_path, output_csv=None, visualize=False):
             combined_score = 0.4*basic_score + 0.3*pca_score + 0.3*boundary_score
             features['a_combined'] = min(combined_score, 1.0)
            
-            # Visualization
-            # if visualize:
-            #     visualize_asymmetry(img, binary_mask, features, filename)
-           
             results.append(features)
            
         except Exception as e:
             print(f"Error processing {filename}: {str(e)}")
    
-    # Convert to DataFrame
+
     new_df = pd.DataFrame(results)
-   
-    # Combine with existing data if available
+
     if existing_df is not None and not new_df.empty:
         combined_df = pd.concat([existing_df, new_df], ignore_index=True)
     elif not new_df.empty:
@@ -120,7 +112,7 @@ def extract_asymmetry_features(folder_path, output_csv=None, visualize=False):
     else:
         combined_df = existing_df if existing_df is not None else pd.DataFrame()
    
-    # Save to CSV if an output path is specified
+
     if output_csv and not combined_df.empty:
         combined_df.to_csv(output_csv, index=False)
         print(f"Features saved to {output_csv}")
@@ -166,7 +158,7 @@ def compute_pca_asymmetry(mask):
         rotated = transform.rotate(mask.astype(float), angle, resize=True, order=0)
         return np.sum(np.abs(rotated - np.fliplr(rotated))) / (2 * np.sum(mask))
     except:
-        return compute_basic_asymmetry(mask)  # Fallback
+        return compute_basic_asymmetry(mask) 
  
 def compute_boundary_asymmetry(mask):
     """Compute boundary-weighted asymmetry"""
@@ -174,90 +166,19 @@ def compute_boundary_asymmetry(mask):
     weights = distance_transform_edt(~boundary)
     vert_flip = np.fliplr(mask)
     vert_diff = np.sum(weights * np.abs(mask.astype(int) - vert_flip.astype(int)))
-    return vert_diff / max(np.sum(weights), 1)  # Avoid division by zero
+    return vert_diff / max(np.sum(weights), 1) 
  
 
 
 if __name__ == "__main__":
-    folder_path = "your path" # This should be a valid path for testing
-    # Example: folder_path = r"C:\path\to\your\test\images" 
+    folder_path = "your path" 
+
     output_csv_path = os.path.join(folder_path, "asymmetry_features.csv") 
 
-    # Run the feature extraction and save results to CSV
     df = extract_asymmetry_features(folder_path, output_csv=output_csv_path, visualize=False)
 
-    # Optional: print the first few lines of the dataframe to check
     if not df.empty:
         print(df.head())
     else:
         print("No asymmetry features were extracted.")
     
-    # REMOVE OR COMMENT OUT THIS LINE if it's outside the if __name__ block:
-    # extract_asymmetry_features(folder_path, visualize=False) 
- 
- 
- 
- 
- 
-# for the report:
- 
-# def visualize_asymmetry(img, mask, features, filename):
-#     """Visualize asymmetry calculations"""
-#     plt.figure(figsize=(15, 10))
-   
-#     # Original image with mask
-#     plt.subplot(2, 3, 1)
-#     plt.imshow(img)
-#     plt.title("Original Image")
-   
-#     plt.subplot(2, 3, 2)
-#     plt.imshow(mask, cmap='gray')
-#     plt.title("Lesion Mask")
-   
-#     # Basic asymmetry visualization
-#     labeled = measure.label(mask)
-#     regions = measure.regionprops(labeled)
-#     lesion = max(regions, key=lambda r: r.area)
-#     minr, minc, maxr, maxc = lesion.bbox
-#     cropped = mask[minr:maxr, minc:maxc]
-   
-#     plt.subplot(2, 3, 3)
-#     plt.imshow(cropped, cmap='gray')
-#     plt.contour(np.fliplr(cropped), colors='red', linewidths=1)
-#     plt.title(f"Basic Asymmetry\nScore: {features['a_basic']:.3f}")
-   
-#     # PCA asymmetry visualization
-#     try:
-#         y, x = np.where(cropped)
-#         pca = PCA(n_components=2)
-#         pca.fit(np.column_stack([x, y]))
-#         angle = np.arctan2(pca.components_[0][1], pca.components_[0][0]) * 180 / np.pi
-#         rotated = transform.rotate(cropped.astype(float), angle, resize=True, order=0)
-       
-#         plt.subplot(2, 3, 4)
-#         plt.imshow(rotated, cmap='gray')
-#         plt.contour(np.fliplr(rotated), colors='red', linewidths=1)
-#         plt.title(f"PCA-Aligned Asymmetry\nScore: {features['a_pca']:.3f}")
-#     except:
-#         pass
-   
-#     # Boundary-weighted visualization
-#     boundary = cropped - morphology.binary_erosion(cropped)
-#     weights = distance_transform_edt(~boundary)
-   
-#     plt.subplot(2, 3, 5)
-#     plt.imshow(weights, cmap='viridis')
-#     plt.title("Boundary Weights")
-   
-#     plt.subplot(2, 3, 6)
-#     plt.imshow(cropped, cmap='gray')
-#     plt.contour(np.fliplr(cropped), colors='red', linewidths=1)
-#     plt.title(f"Combined Score: {features['a_combined']:.3f}")
-   
-#     plt.tight_layout()
-   
-#     # Save visualization
-#     vis_dir = os.path.join(os.path.dirname(folder_path), 'asymmetry_visualizations')
-#     os.makedirs(vis_dir, exist_ok=True)
-#     plt.savefig(os.path.join(vis_dir, f"asymmetry_{filename}"))
-#     plt.close()

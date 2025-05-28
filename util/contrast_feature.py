@@ -5,8 +5,8 @@ import numpy as np
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans  # Make sure this import is present
-from tqdm import tqdm # Import tqdm
+from sklearn.cluster import KMeans  
+from tqdm import tqdm 
 
 
 def extract_feature_contrast(folder_path, output_csv=None, visualize=False):
@@ -37,13 +37,13 @@ def extract_feature_contrast(folder_path, output_csv=None, visualize=False):
 
     files = [f for f in os.listdir(folder_path) if os.path.splitext(f)[1].lower() in valid_exts]
 
-    for filename in tqdm(files, desc="Extracting Contrast Features"): # Wrap loop with tqdm
+    for filename in tqdm(files, desc="Extracting Contrast Features"): 
         if existing_df is not None and filename in existing_df['filename'].values:
-            # print(f"Skipping {filename} (already processed).") # Suppress per-file skip message
+           
             continue
 
         filepath = os.path.join(folder_path, filename)
-        # print(f"Processing {filename} for contrast features...") # Suppress per-file message
+        
 
         try:
             img_bgr = cv2.imread(filepath)
@@ -133,7 +133,6 @@ if __name__ == "__main__":
     folder = r"C:\path\to\your\skin_lesion_images"
     output_csv_path = r"C:\path\to\your\output\contrast_features.csv"
 
-    # Example call:
     df_contrast = extract_feature_contrast(folder, output_csv=output_csv_path, visualize=True)
     if not df_contrast.empty:
         df_contrast.to_csv(output_csv_path, index=False)
