@@ -1,5 +1,3 @@
-
-
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -44,7 +42,7 @@ def extract_feature_BV(folder_path, output_csv=None, normalize_colors=True, visu
             
         image_path = os.path.join(folder_path, filename)
         
-        current_features = {'filename': filename} # Initialize features for this file
+        current_features = {'filename': filename} 
 
         try:
             img_bgr = cv2.imread(image_path)
@@ -62,7 +60,7 @@ def extract_feature_BV(folder_path, output_csv=None, normalize_colors=True, visu
             y_coords, x_coords = np.ogrid[:h, :w]
             dist_from_center = np.sqrt((x_coords - center_x)**2 + (y_coords - center_y)**2)
             
-            initial_mask_radius = min(h, w) // 2.8 # Adjusted radius
+            initial_mask_radius = min(h, w) // 2.8 
             circular_mask = dist_from_center <= initial_mask_radius
             
             pixels_for_kmeans = img_resized.reshape(-1, 3)
@@ -77,7 +75,7 @@ def extract_feature_BV(folder_path, output_csv=None, normalize_colors=True, visu
             
             if len(lesion_pixels_rgb) == 0:
                 print(f"No lesion detected in {filename} after segmentation, skipping BV feature extraction.")
-                # Populate with default values for this file as it's skipped for BV calculation
+                
                 current_features['bv_present'] = 0
                 current_features['bv_pixel_count'] = 0
                 current_features['bv_area_ratio'] = 0.0
@@ -90,10 +88,10 @@ def extract_feature_BV(folder_path, output_csv=None, normalize_colors=True, visu
                 current_features['bv_mean_H'] = 0.0
                 current_features['bv_mean_S'] = 0.0
                 current_features['bv_mean_V'] = 0.0
-                results.append(current_features) # Append features (with defaults) for this file
+                results.append(current_features)
 
-                if visualize: # Create a minimal visualization if requested for no lesion case
-                    plt.figure(figsize=(12, 4)) # Adjusted for 3 plots
+                if visualize: 
+                    plt.figure(figsize=(12, 4)) 
                     plt.subplot(1, 3, 1); plt.imshow(img_resized); plt.title("Resized Image"); plt.axis('off')
                     plt.subplot(1, 3, 2); plt.imshow(final_lesion_mask, cmap='gray'); plt.title("Lesion Mask (Empty)"); plt.axis('off')
                     lesion_display_img = np.zeros_like(img_resized) # Black image
@@ -103,7 +101,7 @@ def extract_feature_BV(folder_path, output_csv=None, normalize_colors=True, visu
                     os.makedirs(vis_dir, exist_ok=True)
                     plt.savefig(os.path.join(vis_dir, f"vis_bv_{filename}_no_lesion.png"))
                     plt.close()
-                continue # Skip to next file for feature extraction
+                continue 
 
             # Step 2: Blue Veil Detection
             lesion_pixels_rgb_normalized = lesion_pixels_rgb / 255.0
@@ -156,7 +154,7 @@ def extract_feature_BV(folder_path, output_csv=None, normalize_colors=True, visu
                 current_features['bv_mean_H'] = mean_hsv_bv[0]
                 current_features['bv_mean_S'] = mean_hsv_bv[1]
                 current_features['bv_mean_V'] = mean_hsv_bv[2]
-            else: # No blue veil detected in the lesion
+            else: 
                 current_features['bv_present'] = 0
                 current_features['bv_pixel_count'] = 0
                 current_features['bv_area_ratio'] = 0.0
@@ -170,7 +168,7 @@ def extract_feature_BV(folder_path, output_csv=None, normalize_colors=True, visu
                 current_features['bv_mean_S'] = 0.0
                 current_features['bv_mean_V'] = 0.0
             
-            results.append(current_features) # Add features for this successfully processed file
+            results.append(current_features) 
 
             if visualize:
                 plt.figure(figsize=(16, 4)) 
@@ -182,7 +180,6 @@ def extract_feature_BV(folder_path, output_csv=None, normalize_colors=True, visu
                 lesion_display_img[final_lesion_mask] = img_resized[final_lesion_mask]
                 plt.subplot(1, 4, 3); plt.imshow(lesion_display_img); plt.title("Extracted Lesion"); plt.axis('off')
 
-                # For visualization of BV mask on the full image context (within lesion)
                 hsv_img_resized_full = color.rgb2hsv(img_resized / 255.0)
                 bv_candidate_mask_on_full_img = (hsv_img_resized_full[:, :, 0] >= H_MIN_BV) & \
                                                 (hsv_img_resized_full[:, :, 0] <= H_MAX_BV) & \
@@ -197,8 +194,8 @@ def extract_feature_BV(folder_path, output_csv=None, normalize_colors=True, visu
                 plt.title(f"Blue Veil Mask (Present: {current_features['bv_present']})")
                 plt.axis('off')
                 
-                plt.suptitle(f"Blue Veil Detection: {filename}", fontsize=10) # Add filename to suptitle for clarity
-                plt.tight_layout(rect=[0, 0, 1, 0.96]) # Adjust layout to make space for suptitle
+                plt.suptitle(f"Blue Veil Detection: {filename}", fontsize=10) 
+                plt.tight_layout(rect=[0, 0, 1, 0.96])
                 
                 vis_dir = os.path.join(folder_path, 'visualizations_bv')
                 os.makedirs(vis_dir, exist_ok=True)
@@ -207,13 +204,7 @@ def extract_feature_BV(folder_path, output_csv=None, normalize_colors=True, visu
 
         except Exception as e:
             print(f"Error processing {filename} for Blue Veil features: {str(e)}. File skipped.")
-            # Ensure skipped files still have a row in the results DataFrame,
-            # even if features are defaulted to 0 or NaN.
-            # To achieve this consistently, you might want to initialize current_features
-            # with all default values at the start of the loop, then fill it if successful.
-            # For simplicity here, if an error occurs *before* features are added,
-            # we populate defaults and append, similar to the "no lesion" case.
-            # Check if current_features was already appended (e.g. by 'no lesion' path)
+        
             if current_features not in results:
                 current_features['bv_present'] = 0
                 current_features['bv_pixel_count'] = 0
@@ -229,43 +220,32 @@ def extract_feature_BV(folder_path, output_csv=None, normalize_colors=True, visu
                 current_features['bv_mean_V'] = 0.0
                 results.append(current_features)
 
-
-    # Convert list of dicts to DataFrame
     new_df = pd.DataFrame(results)
     
-    # Combine with existing data if available (following original C function's logic)
     final_df_to_return = pd.DataFrame() 
     if not new_df.empty:
         if existing_df is not None:
-            # Since existing_df files were skipped, new_df contains only new files.
-            # A simple concatenation is appropriate here.
             final_df_to_return = pd.concat([existing_df, new_df], ignore_index=True)
         else:
             final_df_to_return = new_df
-    elif existing_df is not None: # new_df is empty, but existing_df was loaded
+    elif existing_df is not None: 
         final_df_to_return = existing_df
-    # If both new_df and existing_df are empty/None, final_df_to_return remains an empty DataFrame.
     
     return final_df_to_return
 
 if __name__ == "__main__":
-    # Example Usage (similar to your extract_feature_C __main__ block)
-    # Replace with your actual image folder path
-    # Ensure this path points to a directory with .jpg, .png, etc. images
+
     image_folder = r"C:\path\to\your\skin_lesion_images" 
     
-    # Path for the CSV that this standalone script will manage for Blue Veil features
     output_csv_for_standalone_run = r"C:\path\to\your\output_folder\blue_veil_features_standalone.csv"
 
-    # Create dummy image folder and images for testing if it doesn't exist
-    # This is just for making the __main__ runnable for demonstration
     if not os.path.exists(image_folder) or not os.listdir(image_folder):
         print(f"Test image folder '{image_folder}' not found or empty. Creating dummy data for demonstration.")
         os.makedirs(image_folder, exist_ok=True)
-        # Create a few dummy images
+        
         for i in range(3):
             dummy_img = np.random.randint(0, 256, (100, 100, 3), dtype=np.uint8)
-            # Make one potentially "blue-ish"
+        
             if i == 1:
                  dummy_img[:,:,0] = 50 # Low Red
                  dummy_img[:,:,1] = 70 # Low Green
@@ -273,21 +253,19 @@ if __name__ == "__main__":
             cv2.imwrite(os.path.join(image_folder, f"dummy_lesion_{i+1}.png"), dummy_img)
         print(f"Created dummy images in '{image_folder}'. Please replace with your actual image path for real use.")
 
-    # Ensure the output directory for the CSV exists
+    
     if output_csv_for_standalone_run:
         os.makedirs(os.path.dirname(output_csv_for_standalone_run), exist_ok=True)
 
     print(f"\nStarting Blue Veil feature extraction from: {image_folder}")
     df_bv_features = extract_feature_BV(
         folder_path=image_folder,
-        output_csv=output_csv_for_standalone_run, # Pass CSV path for standalone management
+        output_csv=output_csv_for_standalone_run, 
         normalize_colors=True,
-        visualize=True # Set to True to generate and save visualizations
+        visualize=True 
     )
 
     if not df_bv_features.empty:
-        # If output_csv_for_standalone_run was used, df_bv_features already includes its old data.
-        # So, we just save df_bv_features to that path.
         df_bv_features.to_csv(output_csv_for_standalone_run, index=False)
         print(f"\nSaved/Updated extracted Blue Veil features to: {output_csv_for_standalone_run}")
         print("First 5 rows of the Blue Veil features DataFrame:")
