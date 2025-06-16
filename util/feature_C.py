@@ -5,238 +5,150 @@ import os
 import pandas as pd
 from skimage import segmentation, color
 from sklearn.cluster import KMeans
-from tqdm import tqdm 
+from tqdm import tqdm
+
+# Define the final, minimal set of features we will calculate.
+# This list now includes the one-hot encoded columns.
+MINIMAL_COLOR_FEATURES = [
+    'c_mean_red', 'c_mean_green',
+    'c_std_red', 'c_std_green', 'c_std_blue',
+    'c_mean_hue', 'c_mean_saturation',
+    'c_std_hue', 'c_std_saturation',
+    'c_red_asymmetry', 'c_green_asymmetry', 'c_blue_asymmetry',
+    'c_dom_channel_red', 'c_dom_channel_green', 'c_dom_channel_blue' # Added OHE columns
+]
+
+def _get_default_features(filename: str) -> dict:
+    """Returns a dictionary of default feature values for failed cases."""
+    base_filename = os.path.splitext(filename)[0]
+    features = {'filename': base_filename}
+    for f_name in MINIMAL_COLOR_FEATURES:
+        features[f_name] = 0.0
+    return features
 
 def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visualize=False):
     """
-    Function to extract color features from skin lesion images in a folder
-    
-    Parameters:
-    folder_path (str): Path to the folder containing skin lesion images
-    output_csv (str): Path to output CSV file. If the file exists, features will be added to it
-    normalize_colors (bool): Whether to normalize color values to range [0,1]
-    visualize (bool): Whether to visualize the segmentation results
-    
-    Returns:
-    pd.DataFrame: DataFrame containing color features for all images
+    Extracts a minimal, non-redundant, and one-hot encoded set of color features.
     """
- 
     results = []
-    
     valid_extensions = ['.jpg', '.jpeg', '.png', '.bmp']
-    
-    existing_df = None
-    if output_csv and os.path.exists(output_csv):
-        try:
-            existing_df = pd.read_csv(output_csv)
-            print(f"Loaded existing features from {output_csv}")
-        except Exception as e:
-            print(f"Error loading existing CSV: {str(e)}")
-    
     image_files = [f for f in os.listdir(folder_path) if os.path.splitext(f)[1].lower() in valid_extensions]
 
-    for filename in tqdm(image_files, desc="Extracting Color Features (C)"): 
-       
-        if existing_df is not None and filename in existing_df['filename'].values:
-        
-            continue
-            
+    for filename in tqdm(image_files, desc="Extracting Refined Color Features (C)"):
         image_path = os.path.join(folder_path, filename)
-        
+
         try:
             img = cv2.imread(image_path)
             if img is None:
-                print(f"Error reading {filename}, skipping...")
+                print(f"Warning: Error reading {filename}, skipping.")
                 continue
-                
+
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            
-            # Resize for consistency (optional)
             img = cv2.resize(img, (256, 256))
+
+            # --- Segmentation ---
+            lab_img = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
+            pixels = lab_img.reshape(-1, 3)
+            kmeans = KMeans(n_clusters=2, random_state=42, n_init='auto').fit(pixels)
+            labels = kmeans.labels_.reshape(img.shape[:2])
+
+            if np.sum(labels == 0) > np.sum(labels == 1):
+                lesion_label = 1
+            else:
+                lesion_label = 0
             
-            # Step 1: Segment the lesion from the background
-            # Convert to LAB color space for better segmentation
-            lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
-            
-            # Apply SLIC segmentation to get superpixels
-            segments = segmentation.slic(img, n_segments=100, compactness=10, sigma=1)
-            
-            # Create a mask for the lesion area
-            h, w = img.shape[:2]
-            center_y, center_x = h // 2, w // 2
-            
-            # Create a circular mask around the center
-            y, x = np.ogrid[:h, :w]
-            dist_from_center = np.sqrt((x - center_x)**2 + (y - center_y)**2)
-            mask = dist_from_center <= min(h, w) // 3
-            
-            # Refine mask using color information
-            pixels = img.reshape(-1, 3)
-            kmeans = KMeans(n_clusters=2, random_state=0, n_init='auto').fit(pixels) # Added n_init='auto' for KMeans
-            labels = kmeans.labels_.reshape(h, w)
-            
-            # Determine which label corresponds to the lesion
-            center_label = labels[center_y, center_x]
-            refined_mask = (labels == center_label)
-            
-            # Combine masks
-            final_mask = np.logical_and(mask, refined_mask)
-            
-            # Step 2: Extract color features from the lesion area
+            final_mask = (labels == lesion_label)
             lesion_pixels = img[final_mask]
-            
-            if len(lesion_pixels) == 0:
-                print(f"No lesion detected in {filename}, skipping...")
-                
-                features = {'filename': filename}
-                default_color_features = [
-                    'c_mean_red', 'c_mean_green', 'c_mean_blue', 'c_std_red', 'c_std_green', 'c_std_blue',
-                    'c_mean_hue', 'c_mean_saturation', 'c_mean_value', 'c_std_hue', 'c_std_saturation', 'c_std_value',
-                    'c_red_asymmetry', 'c_green_asymmetry', 'c_blue_asymmetry', 'c_color_variance',
-                    'c_red_green_ratio', 'c_red_blue_ratio', 'c_green_blue_ratio'
-                ]
-                for f in default_color_features:
-                    features[f] = 0.0
-                features['c_dominant_channel'] = 'none' 
-                results.append(features)
+
+            if lesion_pixels.shape[0] < 50:
+                print(f"Warning: Very few lesion pixels found in {filename}, skipping.")
+                results.append(_get_default_features(filename))
                 continue
-            
-            # Calculate color features
+
+            # --- Feature Calculation ---
             features = {'filename': filename}
             
-            # Apply normalization if requested
             if normalize_colors:
-                lesion_pixels = lesion_pixels / 255.0
-                divisor = 1.0  
+                lesion_pixels_norm = lesion_pixels / 255.0
             else:
-                divisor = 1.0  
-            
-            # RGB color space features
-            features['c_mean_red'] = np.mean(lesion_pixels[:, 0])
-            features['c_mean_green'] = np.mean(lesion_pixels[:, 1])
-            features['c_mean_blue'] = np.mean(lesion_pixels[:, 2])
-            features['c_std_red'] = np.std(lesion_pixels[:, 0])
-            features['c_std_green'] = np.std(lesion_pixels[:, 1])
-            features['c_std_blue'] = np.std(lesion_pixels[:, 2])
-            
-            # Convert to HSV for additional features
-            if normalize_colors:
-                hsv_pixels = color.rgb2hsv(lesion_pixels)
-            else:
-                hsv_pixels = color.rgb2hsv(lesion_pixels / 255.0)
-                
+                lesion_pixels_norm = lesion_pixels
+
+            # --- KEPT: RGB Features ---
+            features['c_mean_red'] = np.mean(lesion_pixels_norm[:, 0])
+            features['c_mean_green'] = np.mean(lesion_pixels_norm[:, 1])
+            features['c_std_red'] = np.std(lesion_pixels_norm[:, 0])
+            features['c_std_green'] = np.std(lesion_pixels_norm[:, 1])
+            features['c_std_blue'] = np.std(lesion_pixels_norm[:, 2])
+
+            # --- KEPT: HSV Features ---
+            hsv_pixels = color.rgb2hsv(lesion_pixels_norm)
             features['c_mean_hue'] = np.mean(hsv_pixels[:, 0])
             features['c_mean_saturation'] = np.mean(hsv_pixels[:, 1])
-            features['c_mean_value'] = np.mean(hsv_pixels[:, 2])
             features['c_std_hue'] = np.std(hsv_pixels[:, 0])
             features['c_std_saturation'] = np.std(hsv_pixels[:, 1])
-            features['c_std_value'] = np.std(hsv_pixels[:, 2])
-            
-            # Color asymmetry features
-            left_mask = np.zeros_like(final_mask)
+
+            # --- KEPT: Color Asymmetry ---
+            h, w, _ = img.shape
+            left_mask, right_mask = np.zeros_like(final_mask), np.zeros_like(final_mask)
             left_mask[:, :w//2] = final_mask[:, :w//2]
-            right_mask = np.zeros_like(final_mask)
             right_mask[:, w//2:] = final_mask[:, w//2:]
             
             left_pixels = img[left_mask]
             right_pixels = img[right_mask]
             
-            if len(left_pixels) > 0 and len(right_pixels) > 0:
+            if left_pixels.size > 0 and right_pixels.size > 0:
                 if normalize_colors:
-                    left_pixels = left_pixels / 255.0
-                    right_pixels = right_pixels / 255.0
-                    
-                features['c_red_asymmetry'] = abs(np.mean(left_pixels[:, 0]) - np.mean(right_pixels[:, 0]))
-                features['c_green_asymmetry'] = abs(np.mean(left_pixels[:, 1]) - np.mean(right_pixels[:, 1]))
-                features['c_blue_asymmetry'] = abs(np.mean(left_pixels[:, 2]) - np.mean(right_pixels[:, 2]))
+                    left_pixels_norm = left_pixels / 255.0
+                    right_pixels_norm = right_pixels / 255.0
+                features['c_red_asymmetry'] = abs(np.mean(left_pixels_norm[:, 0]) - np.mean(right_pixels_norm[:, 0]))
+                features['c_green_asymmetry'] = abs(np.mean(left_pixels_norm[:, 1]) - np.mean(right_pixels_norm[:, 1]))
+                features['c_blue_asymmetry'] = abs(np.mean(left_pixels_norm[:, 2]) - np.mean(right_pixels_norm[:, 2]))
             else:
-                features['c_red_asymmetry'] = 0
-                features['c_green_asymmetry'] = 0
-                features['c_blue_asymmetry'] = 0
+                features['c_red_asymmetry'], features['c_green_asymmetry'], features['c_blue_asymmetry'] = 0.0, 0.0, 0.0
+
+            # --- NEW: One-Hot Encoding for Color Dominance ---
+            rgb_means_full = np.mean(lesion_pixels_norm, axis=0)
+            dominant_channel_index = np.argmax(rgb_means_full)
             
-            # Color variance (indicates color homogeneity/heterogeneity)
-            features['c_color_variance'] = np.sum(np.var(lesion_pixels, axis=0))
-            
-            # Additional color features
-            features['c_red_green_ratio'] = features['c_mean_red'] / max(features['c_mean_green'], divisor)
-            features['c_red_blue_ratio'] = features['c_mean_red'] / max(features['c_mean_blue'], divisor)
-            features['c_green_blue_ratio'] = features['c_mean_green'] / max(features['c_mean_blue'], divisor)
-            
-            # Color dominance
-            rgb_means = [features['c_mean_red'], features['c_mean_green'], features['c_mean_blue']]
-            features['c_dominant_channel'] = ['red', 'green', 'blue'][np.argmax(rgb_means)]
-            
-            # Visualization (if enabled)
-            if visualize:
-                plt.figure(figsize=(15, 5))
-                
-                plt.subplot(1, 3, 1)
-                plt.imshow(img)
-                plt.title("Original Image")
-                
-                plt.subplot(1, 3, 2)
-                plt.imshow(final_mask, cmap='gray')
-                plt.title("Lesion Mask")
-                
-                plt.subplot(1, 3, 3)
-                masked_img = img.copy()
-                masked_img[~final_mask] = [0, 0, 0]
-                plt.imshow(masked_img)
-                plt.title("Extracted Lesion")
-                
-                plt.tight_layout()
-                
-                vis_dir = os.path.join(folder_path, 'visualizations')
-                os.makedirs(vis_dir, exist_ok=True)
-                plt.savefig(os.path.join(vis_dir, f"vis_{filename}"))
-                plt.close()
-            
+            features['c_dom_channel_red'] = 1.0 if dominant_channel_index == 0 else 0.0
+            features['c_dom_channel_green'] = 1.0 if dominant_channel_index == 1 else 0.0
+            features['c_dom_channel_blue'] = 1.0 if dominant_channel_index == 2 else 0.0
+
             results.append(features)
-            
+
         except Exception as e:
-            print(f"Error processing {filename}: {str(e)}")
+            print(f"CRITICAL Error processing {filename}: {e}")
+            results.append(_get_default_features(filename))
 
-            features = {'filename': filename}
-            default_color_features = [
-                'c_mean_red', 'c_mean_green', 'c_mean_blue', 'c_std_red', 'c_std_green', 'c_std_blue',
-                'c_mean_hue', 'c_mean_saturation', 'c_mean_value', 'c_std_hue', 'c_std_saturation', 'c_std_value',
-                'c_red_asymmetry', 'c_green_asymmetry', 'c_blue_asymmetry', 'c_color_variance',
-                'c_red_green_ratio', 'c_red_blue_ratio', 'c_green_blue_ratio'
-            ]
-            for f in default_color_features:
-                features[f] = 0.0
-            features['c_dominant_channel'] = 'none' 
-            results.append(features)
+    df = pd.DataFrame(results)
 
-    new_df = pd.DataFrame(results)
-    
-    if existing_df is not None and not new_df.empty:
-        combined_df = pd.concat([existing_df, new_df], ignore_index=True)
-    elif not new_df.empty:
-        combined_df = new_df
-    else:
-        combined_df = existing_df if existing_df is not None else pd.DataFrame()
+    # Reorder columns for consistency
+    if not df.empty:
+        final_columns = ['filename'] + MINIMAL_COLOR_FEATURES
+        df = df[final_columns]
 
-    return combined_df
+    if output_csv:
+        os.makedirs(os.path.dirname(output_csv), exist_ok=True)
+        df.to_csv(output_csv, index=False)
+        print(f"\nSaved refined color features to {output_csv}")
+
+    return df
 
 if __name__ == "__main__":
-    image_folder = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\images" # Example path
-    
-    output_csv_for_standalone_run = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\2025-FYP-Final\result\color_features_standalone.csv"
+    folder_path = r"C:\Users\misog\portfolio\Machine learning skin lesion project\matched_data\images"
+    output_csv_path = os.path.join(folder_path, "color_features.csv") 
 
-    df = extract_feature_C(
-        folder_path=image_folder,
-        output_csv=None, 
+    df_features = extract_feature_C(
+        folder_path=folder_path,
+        output_csv=output_csv_path,
         normalize_colors=True,
-        visualize=False 
+        visualize=False
     )
 
-   
-    if not df.empty:
-        
-        os.makedirs(os.path.dirname(output_csv_for_standalone_run), exist_ok=True)
-        df.to_csv(output_csv_for_standalone_run, index=False) 
-        print(f"Saved extracted color features (standalone run) to: {output_csv_for_standalone_run}")
-        print(df.head())
+    if not df_features.empty:
+        print("\nSuccessfully extracted refined color features with One-Hot Encoding. First 5 rows:")
+        print(df_features.head())
+        print("\nFeatures calculated:")
+        print(df_features.columns.tolist())
     else:
-        print("No color features were extracted (standalone run).")
+        print("\nNo color features were extracted.")

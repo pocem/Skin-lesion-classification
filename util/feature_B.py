@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import pandas as pd
 from typing import Dict, List, Optional
-from tqdm import tqdm  
+from tqdm import tqdm
 
 def extract_border_features_from_folder(
     folder_path: str,
@@ -13,26 +13,29 @@ def extract_border_features_from_folder(
     morph_kernel_size: int = 3
 ) -> pd.DataFrame:
     """
-    Extract border features from all images in a folder and return as DataFrame.
-    
+    Extracts a minimal set of informative border features from all images in a folder.
+
+    This function iterates through images, calls extract_border_features for each,
+    and compiles the results into a pandas DataFrame.
+
     Args:
-        folder_path: Path to folder containing images
-        output_csv: Optional path to save results as CSV
-        visualize: Whether to display intermediate results
-        block_size: Adaptive thresholding block size (must be odd)
-        morph_kernel_size: Size of morphological operation kernel
-        
+        folder_path: Path to the folder containing lesion images.
+        output_csv: Optional path to save the resulting features to a CSV file.
+        visualize: If True, displays intermediate processing steps for debugging.
+        block_size: The size of the neighborhood for adaptive thresholding (must be odd).
+        morph_kernel_size: The size of the kernel for morphological operations.
+
     Returns:
-        DataFrame containing border features for all images
+        A pandas DataFrame where each row corresponds to an image and columns
+        are the extracted border features.
     """
-    
     valid_extensions = ('.jpg', '.jpeg', '.png', '.bmp')
-    image_files = [f for f in os.listdir(folder_path) 
-                  if f.lower().endswith(valid_extensions)]
-    
+    image_files = [f for f in os.listdir(folder_path)
+                   if f.lower().endswith(valid_extensions)]
+
     features_list = []
-    
-    for filename in tqdm(image_files, desc="Processing images"):
+
+    for filename in tqdm(image_files, desc="Extracting Border Features"):
         try:
             image_path = os.path.join(folder_path, filename)
             features = extract_border_features(
@@ -41,24 +44,30 @@ def extract_border_features_from_folder(
                 block_size=block_size,
                 morph_kernel_size=morph_kernel_size
             )
-            features['filename'] = filename
+            base_filename = os.path.splitext(os.path.basename(filename))[0]
+            features['filename'] = base_filename# Use basename for safety
             features_list.append(features)
-            
+
         except Exception as e:
             print(f"\nError processing {filename}: {str(e)}")
+            # Optionally append a row with NaNs or default values
+            # to keep track of failed files, but for now we skip.
             continue
-    
+
+    if not features_list:
+        return pd.DataFrame()
 
     df = pd.DataFrame(features_list)
-    
 
+    # Reorder columns to have 'filename' first
     cols = ['filename'] + [col for col in df.columns if col != 'filename']
     df = df[cols]
-    
+
     if output_csv:
+        os.makedirs(os.path.dirname(output_csv), exist_ok=True)
         df.to_csv(output_csv, index=False)
-        print(f"\nSaved features to {output_csv}")
-    
+        print(f"\nSaved border features to {output_csv}")
+
     return df
 
 def extract_border_features(
@@ -68,137 +77,101 @@ def extract_border_features(
     morph_kernel_size: int = 3
 ) -> Dict[str, float]:
     """
-    Enhanced border feature extraction focused on essential border characteristics.
+    Extracts a refined set of border features to minimize redundancy.
+
+    This version focuses on the variability (standard deviation) of contour
+    and edge properties, which are good indicators of irregularity.
+
+    Features Extracted:
+    - contour_count: Number of distinct contours detected.
+    - contour_perimeter_std: Standard deviation of contour perimeters (measures size variation).
+    - sobel_std: Standard deviation of Sobel edge magnitude (measures edge texture/consistency).
+    - laplacian_std: Standard deviation of Laplacian response (measures edge "spikiness" variation).
+
+    Args:
+        (Same as above)
+
+    Returns:
+        A dictionary containing the calculated feature values for one image.
     """
     try:
-        
         img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
         if img is None:
             raise FileNotFoundError(f"Image not found or corrupted: {image_path}")
-        
-       
-        img = cv2.resize(img, (256, 256))
-        
-        
-        if block_size % 2 == 0:
-            block_size += 1  
-        img_adapt = cv2.adaptiveThreshold(
-            img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY_INV, block_size, 2
-        )
-        
-        # --- Morphological Processing ---
-        kernel = np.ones((morph_kernel_size, morph_kernel_size), np.uint8)
-        img_clean = cv2.morphologyEx(img_adapt, cv2.MORPH_CLOSE, kernel)
 
-        # --- Edge Detection on Original Image ---
+        # Standardize image size
+        img = cv2.resize(img, (256, 256))
+
+        # --- Edge Detection on Original Grayscale Image ---
         sobel_x = cv2.Sobel(img, cv2.CV_32F, 1, 0, ksize=3)
         sobel_y = cv2.Sobel(img, cv2.CV_32F, 0, 1, ksize=3)
         sobel_mag = np.hypot(sobel_x, sobel_y)
-        
         laplacian = cv2.Laplacian(img, cv2.CV_32F)
-        
-        # --- Contour Analysis (All Contours) ---
-        _, fused_edges = cv2.threshold(
+
+        # --- Contour Analysis ---
+        # We find contours on a binarized version of the edge magnitude map
+        # to capture the main border of the lesion.
+        _, binary_edges = cv2.threshold(
             cv2.normalize(sobel_mag, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8),
             50, 255, cv2.THRESH_BINARY
         )
         contours, _ = cv2.findContours(
-            fused_edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
+            binary_edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
         )
-        
-        # Handle empty contours
+
         contour_count = len(contours)
-        areas = [cv2.contourArea(cnt) for cnt in contours]
-        perimeters = [cv2.arcLength(cnt, True) for cnt in contours]
-        
+        perimeters = [cv2.arcLength(cnt, True) for cnt in contours] if contours else []
+
         # --- Visualization ---
         if visualize:
             viz_img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-            cv2.drawContours(viz_img, contours, -1, (0, 255, 0), 1)
-            cv2.imshow("Contours", viz_img)
+            if contours:
+                cv2.drawContours(viz_img, contours, -1, (0, 255, 0), 1)
+            cv2.imshow("Extracted Contours", viz_img)
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
-        # --- Feature Engineering ---
+        # --- Feature Engineering (Minimal Set) ---
         features = {
-            # Contour Features
-            "contour_count": contour_count,
-            "avg_contour_area": np.nanmean(areas) if areas else 0.0,
-            "contour_area_std": np.nanstd(areas) if areas else 0.0,
-            "avg_contour_perimeter": np.nanmean(perimeters) if perimeters else 0.0,
-            "contour_perimeter_std": np.nanstd(perimeters) if perimeters else 0.0,
-            # Edge Features
-            "sobel_mean": np.nanmean(sobel_mag),
-            "sobel_std": np.nanstd(sobel_mag),
-            "laplacian_mean": np.nanmean(laplacian),
-            "laplacian_std": np.nanstd(laplacian)
+            "contour_count": float(contour_count),
+            "contour_perimeter_std": np.std(perimeters) if perimeters else 0.0,
+            "sobel_std": np.std(sobel_mag),
+            "laplacian_std": np.std(laplacian)
         }
-        
+
         return features
-        
+
     except Exception as e:
-        print(f"Error processing {image_path}: {str(e)}")
-        # Return empty features with same structure
+        print(f"Error during feature extraction for {image_path}: {str(e)}")
+        # Return a dictionary with default values to prevent pipeline failure
         return {
-            "contour_count": 0,
-            "avg_contour_area": 0.0,
-            "contour_area_std": 0.0,
-            "avg_contour_perimeter": 0.0,
+            "contour_count": 0.0,
             "contour_perimeter_std": 0.0,
-            "sobel_mean": 0.0,
             "sobel_std": 0.0,
-            "laplacian_mean": 0.0,
             "laplacian_std": 0.0
         }
 
-def calculate_border_score(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Calculate a single border irregularity score from extracted features.
-    Higher scores indicate more irregular borders (potentially malignant).
-    """
-    df_copy = df.copy()
-    
-    # Avoid division by zero
-    df_copy['sobel_mean_safe'] = df_copy['sobel_mean'].replace(0, 1)
-    df_copy['avg_contour_perimeter_safe'] = df_copy['avg_contour_perimeter'].replace(0, 1)
-    df_copy['laplacian_mean_safe'] = df_copy['laplacian_mean'].abs().replace(0, 1)
-    df_copy['avg_contour_area_safe'] = df_copy['avg_contour_area'].replace(0, 1)
-    
-    # Calculate individual irregularity components
-    perimeter_irregularity = df_copy['contour_perimeter_std'] / df_copy['avg_contour_perimeter_safe']
-    edge_irregularity = df_copy['sobel_std'] / df_copy['sobel_mean_safe']
-    laplacian_irregularity = df_copy['laplacian_std'] / df_copy['laplacian_mean_safe']
-    compactness = df_copy['avg_contour_perimeter'] / np.sqrt(df_copy['avg_contour_area_safe'])
-    
-    # Combine into border score (normalized)
-    df_copy['border_score'] = (
-        0.3 * perimeter_irregularity +
-        0.3 * edge_irregularity + 
-        0.2 * laplacian_irregularity +
-        0.2 * (compactness / compactness.mean())  # Normalize compactness
-    )
-    
-    return df_copy
-
+# The calculate_border_score function has been removed.
 
 if __name__ == "__main__":
+    # Example usage:
+    # IMPORTANT: This should ideally point to your pre-processed, matched MASK directory
+    # as masks provide the cleanest definition of a lesion's border.
+    mask_folder_path = r"C:\Users\misog\portfolio\Machine learning skin lesion project\matched_data\masks"
+    output_csv_path = os.path.join(mask_folder_path, "border_features.csv") 
 
-    folder_path = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\matched_pairs\masks"
-    output_csv = r"C:\Users\Erik\OneDrive - ITU\Escritorio\2 semester\Semester project\Introduction to final project\2025-FYP-Final\resultborder_features.csv"
-    
-    df = extract_border_features_from_folder(
-        folder_path=folder_path,
-        output_csv=output_csv,
-        visualize=False  
+    print(f"Starting border feature extraction from: {mask_folder_path}")
+
+    # The function now directly returns the final DataFrame of features.
+    df_features = extract_border_features_from_folder(
+        folder_path=mask_folder_path,
+        output_csv=output_csv_path,
+        visualize=False
     )
-    
-    # Calculate border scores
-    df_with_scores = calculate_border_score(df)
-    
-    print("\nBorder scores:")
-    print(df_with_scores[['filename', 'border_score']].head())
 
-    df_with_scores.to_csv(output_csv.replace('.csv', '_with_scores.csv'), index=False)
-    print(f"\nSaved features with border scores to {output_csv.replace('.csv', '_with_scores.csv')}")
-    
+    if not df_features.empty:
+        print("\nSuccessfully extracted features. First 5 rows:")
+        print(df_features.head())
+        print(f"\nTotal features extracted for {len(df_features)} images.")
+    else:
+        print("\nNo features were extracted. Please check the input folder and image files.")
