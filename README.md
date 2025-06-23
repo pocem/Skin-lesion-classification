@@ -1,72 +1,75 @@
-# Projects in Data Science (2025)
+# Skin Lesion Classification with Handcrafted Features
 
-Final Assignment
+This project implements a complete machine learning pipeline to classify skin lesions as either **Malignant** or **Benign**. It uses a Random Forest classifier trained on a set of handcrafted features inspired by the dermatological ABCDE rules (Asymmetry, Border, Color).
 
+This work is a continuation and refinement of a university group project, focusing on creating a robust, reproducible, and optimized classification model.
 
+## Project Structure
 
-#### Overview
+- **`/data/`**: Should contain the `metadata_matched.csv` file with lesion diagnostics.
+- **`/util/`**: Contains the Python scripts for feature extraction (`feature_A.py`, `feature_B.py`, etc.).
+- **`build_dataset.py`**: The first script to run. It extracts all features and merges them with metadata to create the final, clean dataset.
+- **`training.py`**: The second script to run. It loads the clean dataset and handles all model training, tuning, and evaluation.
+- **`/model_results/`**: The output directory where evaluation reports and prediction files are saved.
 
-This is a template repository for the final assignment of course "Projects in Data Science." You should refer to this repository in your final hand-in.
+---
 
-If using github.itu.dk, you need to download the repository and make your own. 
+## Data
 
-If you are using general Github, you can clone or fork the repository directly. If your usernames do not give sufficient hints as to who you are, you can tell the TAs how to match them. 
+The model was developed using the **PAD-UFES-20 dataset**. This dataset provides:
+1.  Original clinical images of skin lesions.
+2.  Binary segmentation masks that isolate the lesion area.
+3.  A metadata file containing the ground truth `diagnostic` for each lesion.
 
-Your repository MUST be named 2025-FYP-groupXX where XX is your group number. 
+Due to size and privacy considerations, the image data is not included in this repository.
 
-Look at the slides of the previous two weeks for details of the hand-in. 
+---
 
+## Methodology
 
+The project follows a two-stage classical machine learning pipeline:
 
-#### Python environment
+### 1. Feature Engineering & Dataset Creation
 
-Follow TA instructions when setting up the Python environment before running any code. Remember to export your Python library requirements by `pip freeze > requirements.txt` and attach it to the repo so we can evaluate your scripts.
+The `build_binary_dataset.py` script performs an automated ETL (Extract, Transform, Load) process:
 
+-   **Asymmetry (A):** Calculates geometric and PCA-based asymmetry from the lesion masks.
+-   **Border (B):** Extracts features related to the irregularity and texture of the lesion's border.
+-   **Color (C):** Analyzes color variance, hue, saturation, and asymmetry from the original images.
+-   **Blue-Veil (BV):** A specialized feature to detect the presence and area of a blue-whitish veil, a key clinical indicator.
 
+These features are then merged with the ground truth labels from the metadata. The six original lesion types are grouped into a single binary target:
+-   **Malignant (1):** BCC, SCC, MEL, ACK
+-   **Benign (0):** NEV, SEK
 
-#### File Hierarchy
+### 2. Model Training and Evaluation
 
-The file hierarchy of your hand-in repo should be as follows:
+The `train_binary_model.py` script handles the machine learning workflow:
 
-```
-2025-FYP/
-├── data/               # unzip the dataset and put it here (remove in your hand-in)
-│   ├── img_001.jpg
-│   ......
-│   └── img_XXX.jpg
-│ 
-├── util/
-│   ├── __init__.py
-│   ├── img_util.py     # basic image read and write functions
-│   ├── inpaint.py      # image inpainting function
-│   ├── feature_A.py    # code for feature A extraction
-│   ├── feature_B.py    # code for feature B extraction
-│   ├── feature_C.py    # code for feature C extraction
-│   ......
-│   └── classifier.py   # code for training, validating, and testing the classifier
-│ 
-├── result/
-│   ├── result_baseline.csv      # your results on the baseline setup
-│   ├── result_extended.csv      # your results on the extended setup
-│   └── report.pdf      		 # your report in PDF
-│ 
-├── main_demo.py		# demo script (reference setup, remove in your hand-in)
-├── main_baseline.py	# complete script (baseline setup)
-├── main_extended.py	# complete script (extended setup)
-├── dataset.csv    		# all image file names, ground-truth labels, and chosen features
-└── README.md
-```
+-   **Classifier:** A `RandomForestClassifier` is used for its robustness and performance.
+-   **Class Imbalance:** **SMOTE** (Synthetic Minority Over-sampling TEchnique) is applied to the training set to correct the imbalance between the benign and malignant classes, ensuring the model does not ignore the minority class.
+-   **Hyperparameter Tuning:** `GridSearchCV` automatically searches for the optimal model parameters (`n_estimators`, `max_depth`, etc.) to maximize performance.
+-   **Evaluation:** The model is trained and validated on a 70/15 split of the data, with the final performance reported on a completely held-out 15% **test set**.
 
+---
 
+## How to Use This Project
 
-**Notes:**
+To reproduce the results, follow these steps:
 
-1. DO NOT upload your data (images) to Github.
-2. When the same code block needs to be executed multiple times in the script, make it a custom function instead. All the custom functions and modules, such as image read and write, should be grouped into different files under the *"util"* subfolder, based on the task they are designed for. Do not put everything in a single Python file or copy-paste the same code block across the script.
+### 1. Prerequisites
 
+-   Python 3.8+
+-   A prepared dataset with the following structure:
+    -   `matched_data/images/` (containing original lesion images)
+    -   `matched_data/masks/` (containing corresponding binary masks)
+-   Create a `data` folder in the project root and place your metadata CSV inside it, named `metadata_matched.csv`.
 
+### 2. Installation
 
+Clone the repository and install the required Python libraries:
 
-
-
-
+```bash
+git clone <your-repo-url>
+cd <your-repo-folder>
+pip install -r requirements.txt
