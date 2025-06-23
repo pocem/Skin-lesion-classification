@@ -1,0 +1,44 @@
+--- BINARY CLASSIFICATION RESULTS (Tuned with GridSearchCV + SMOTE) ---
+
+Best Hyperparameters Found:
+{'max_depth': None, 'max_features': 'sqrt', 'min_samples_split': 2, 'n_estimators': 200}
+
+Overall Test Accuracy: 0.8133
+
+Classification Report:
+               precision    recall  f1-score   support
+
+   Benign (0)       0.54      0.46      0.50        63
+Malignant (1)       0.87      0.90      0.89       253
+
+     accuracy                           0.81       316
+    macro avg       0.70      0.68      0.69       316
+ weighted avg       0.80      0.81      0.81       316
+
+
+Confusion Matrix:
+               Predicted Benign (0)  Predicted Malignant (1)
+Benign (0)                       29                       34
+Malignant (1)                    25                      228
+
+Feature Importances:
+                  feature  importance
+7              c_mean_red    0.092833
+14              c_std_hue    0.091707
+1                   a_pca    0.067386
+5               sobel_std    0.061222
+9               c_std_red    0.060517
+6           laplacian_std    0.056847
+3           contour_count    0.054410
+0                 a_basic    0.052109
+8            c_mean_green    0.047684
+2              a_boundary    0.046446
+12             c_mean_hue    0.045961
+16        c_red_asymmetry    0.045021
+4   contour_perimeter_std    0.042986
+13      c_mean_saturation    0.041540
+15       c_std_saturation    0.040130
+18       c_blue_asymmetry    0.039392
+10            c_std_green    0.038696
+11             c_std_blue    0.038203
+17      c_green_asymmetry    0.036908

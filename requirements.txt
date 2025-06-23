@@ -1,20 +1,18 @@
-# Install all with:
-# pip install -r requirements.txt
+# requirements.txt
 
-# Math and data
-numpy==1.26.4          # math with arrays
-pandas==2.2.2          # work with tables and data
-scipy==1.13.1          # extra math tools
+# Core Data Science and Machine Learning
+pandas
+numpy
+scikit-learn
 
-# Charts and plots
-matplotlib==3.9.0      # draw graphs and images
+# Image Processing
+opencv-python-headless
+scikit-image
+tqdm
 
-# Image processing
-opencv-python==4.9.0.80     # read and edit images
-scikit-image==0.23.2        # advanced image tools (e.g. filters, masks)
+# Handling Class Imbalance
+imbalanced-learn
 
-# Machine learning
-scikit-learn==1.5.0         # ML models and tools (like KMeans, classifiers)
-
-# Progress bar
-tqdm==4.66.4           # show progress in loops
+# Optional but Recommended for Visualization/Plotting
+matplotlib
+seaborn

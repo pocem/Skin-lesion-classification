@@ -1,21 +1,18 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 import os
 import pandas as pd
-from skimage import segmentation, color
+from skimage import color
 from sklearn.cluster import KMeans
 from tqdm import tqdm
 
-# Define the final, minimal set of features we will calculate.
-# This list now includes the one-hot encoded columns.
+# set of color features
 MINIMAL_COLOR_FEATURES = [
     'c_mean_red', 'c_mean_green',
     'c_std_red', 'c_std_green', 'c_std_blue',
     'c_mean_hue', 'c_mean_saturation',
     'c_std_hue', 'c_std_saturation',
     'c_red_asymmetry', 'c_green_asymmetry', 'c_blue_asymmetry',
-    'c_dom_channel_red', 'c_dom_channel_green', 'c_dom_channel_blue' # Added OHE columns
 ]
 
 def _get_default_features(filename: str) -> dict:
@@ -73,22 +70,22 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
             else:
                 lesion_pixels_norm = lesion_pixels
 
-            # --- KEPT: RGB Features ---
+            # --- RGB Features ---
             features['c_mean_red'] = np.mean(lesion_pixels_norm[:, 0])
             features['c_mean_green'] = np.mean(lesion_pixels_norm[:, 1])
             features['c_std_red'] = np.std(lesion_pixels_norm[:, 0])
             features['c_std_green'] = np.std(lesion_pixels_norm[:, 1])
             features['c_std_blue'] = np.std(lesion_pixels_norm[:, 2])
 
-            # --- KEPT: HSV Features ---
+            # --- HSV Features ---
             hsv_pixels = color.rgb2hsv(lesion_pixels_norm)
             features['c_mean_hue'] = np.mean(hsv_pixels[:, 0])
             features['c_mean_saturation'] = np.mean(hsv_pixels[:, 1])
             features['c_std_hue'] = np.std(hsv_pixels[:, 0])
             features['c_std_saturation'] = np.std(hsv_pixels[:, 1])
 
-            # --- KEPT: Color Asymmetry ---
-            h, w, _ = img.shape
+            # --- Color Asymmetry ---
+            w, _ = img.shape
             left_mask, right_mask = np.zeros_like(final_mask), np.zeros_like(final_mask)
             left_mask[:, :w//2] = final_mask[:, :w//2]
             right_mask[:, w//2:] = final_mask[:, w//2:]
@@ -105,15 +102,7 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
                 features['c_blue_asymmetry'] = abs(np.mean(left_pixels_norm[:, 2]) - np.mean(right_pixels_norm[:, 2]))
             else:
                 features['c_red_asymmetry'], features['c_green_asymmetry'], features['c_blue_asymmetry'] = 0.0, 0.0, 0.0
-
-            # --- NEW: One-Hot Encoding for Color Dominance ---
-            rgb_means_full = np.mean(lesion_pixels_norm, axis=0)
-            dominant_channel_index = np.argmax(rgb_means_full)
-            
-            features['c_dom_channel_red'] = 1.0 if dominant_channel_index == 0 else 0.0
-            features['c_dom_channel_green'] = 1.0 if dominant_channel_index == 1 else 0.0
-            features['c_dom_channel_blue'] = 1.0 if dominant_channel_index == 2 else 0.0
-
+                   
             results.append(features)
 
         except Exception as e:
@@ -135,7 +124,8 @@ def extract_feature_C(folder_path, output_csv=None, normalize_colors=True, visua
     return df
 
 if __name__ == "__main__":
-    folder_path = r"C:\Users\misog\portfolio\Machine learning skin lesion project\matched_data\images"
+    # folder of the original images 
+    folder_path = r''
     output_csv_path = os.path.join(folder_path, "color_features.csv") 
 
     df_features = extract_feature_C(

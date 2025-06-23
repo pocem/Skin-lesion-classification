@@ -1,6 +1,7 @@
 import pandas as pd
 
-df = pd.read_csv(r'C:\Users\misog\portfolio\Machine learning skin lesion project\matched_data\metadata_matched.csv')
+# read the metadata to see the class distribution of real diagnostics
+df = pd.read_csv(r'')
 
 counts = df['diagnostic'].value_counts()
 
@@ -19,3 +20,6 @@ print(summary_df)
 #SEK           201    9.557775
 #SCC           184    8.749406
 #MEL            49    2.330005
+
+#MALIGNANT --- BCC + SCC + ACK + MEL --- 1682 ~ 80%
+#BENIGN ------ NEV + SEK --------------- 421 ~ 20% 

@@ -1,15 +1,12 @@
-# build_binary_dataset.py
 import sys
 import os
 import pandas as pd
-from tqdm import tqdm
 
 # Import REFINED custom modules
 try:
     from util.feature_A import extract_asymmetry_features
     from util.feature_B import extract_border_features_from_folder
     from util.feature_C import extract_feature_C
-    from util.blue_veil import extract_blue_veil_features
 except ImportError as e:
     print(f"Error: Could not import refined custom feature modules: {e}")
     print("Please ensure feature_A.py, feature_B.py, feature_C.py, and blue_veil.py are in the 'util' directory.")
@@ -41,7 +38,6 @@ def build_dataset(original_img_dir: str, mask_img_dir: str, labels_csv_path: str
         "A_asymmetry": (extract_asymmetry_features, {'folder_path': mask_img_dir}),
         "B_border": (extract_border_features_from_folder, {'folder_path': original_img_dir}),
         "C_color": (extract_feature_C, {'folder_path': original_img_dir}),
-        "BV_blue_veil": (extract_blue_veil_features, {'folder_path': original_img_dir})
     }
 
     for name, (func, params) in feature_extractors.items():
@@ -125,14 +121,18 @@ def build_dataset(original_img_dir: str, mask_img_dir: str, labels_csv_path: str
 
 if __name__ == "__main__":
     # --- Define Input Paths ---
-    matched_data_dir = r"C:\Users\misog\portfolio\Machine learning skin lesion project\matched_data"
+    # directory where the original and masked images are located
+    matched_data_dir = r''
+    # original images directory
     original_img_dir = os.path.join(matched_data_dir, "images")
+    # masked images directory
     mask_img_dir = os.path.join(matched_data_dir, "masks")
-    labels_csv_path = r'C:\Users\misog\portfolio\Machine learning skin lesion project\Skin-lesion-classification\data\metadata_matched.csv'
+    # csv with the real diagnosis used for supervised machine learning
+    labels_csv_path = r''
     
     # --- Define Output Path ---
-    # This is the single, clean file this script will create, ready for binary modeling
-    FINAL_BINARY_DATASET_CSV = r'./final_binary_dataset.csv'
+    # This is the single, clean file this script will create, ready for modeling
+    FINAL_BINARY_DATASET_CSV = r''
 
     # --- Pre-run Check ---
     if not os.path.exists(labels_csv_path):

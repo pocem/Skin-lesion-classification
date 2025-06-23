@@ -7,8 +7,6 @@ from scipy.ndimage import distance_transform_edt
 from skimage import measure, transform, morphology
 from tqdm import tqdm
 
-# This function no longer needs to do its own segmentation.
-# It will receive a path to a folder of masks and work on them directly.
 def extract_asymmetry_features(folder_path, output_csv=None, visualize=False, **kwargs):
     """
     Extracts asymmetry features directly from lesion MASK images in a folder.
@@ -43,9 +41,6 @@ def extract_asymmetry_features(folder_path, output_csv=None, visualize=False, **
             _, binary_mask = cv2.threshold(mask_img, 1, 1, cv2.THRESH_BINARY)
             binary_mask = binary_mask.astype(np.uint8)
 
-            # --- REMOVED: All the complex color segmentation logic ---
-            # We now use the provided binary_mask directly.
-
             # Calculate all asymmetry features
             basic_score = compute_basic_asymmetry(binary_mask)
             features['a_basic'] = basic_score
@@ -55,11 +50,6 @@ def extract_asymmetry_features(folder_path, output_csv=None, visualize=False, **
 
             boundary_score = compute_boundary_asymmetry(binary_mask)
             features['a_boundary'] = boundary_score
-
-            # We can remove the combined score, as the model can learn the weights itself.
-            # Keeping the fundamental features is better.
-            # combined_score = 0.4*basic_score + 0.3*pca_score + 0.3*boundary_score
-            # features['a_combined'] = min(combined_score, 1.0)
 
             results.append(features)
 
@@ -76,9 +66,6 @@ def extract_asymmetry_features(folder_path, output_csv=None, visualize=False, **
         print(f"Asymmetry features saved to {output_csv}")
 
     return df
-
-# Helper functions remain the same but are now more reliable
-# because they receive clean binary masks.
 
 def compute_basic_asymmetry(mask):
     """Compute basic vertical/horizontal mirror asymmetry"""
@@ -148,12 +135,11 @@ def compute_boundary_asymmetry(mask):
 
 if __name__ == "__main__":
     # This should point to your folder of MASKS
-    mask_folder_path = r"C:\Users\misog\portfolio\Machine learning skin lesion project\matched_data\masks"
-    output_csv_path = r"./results_refined_model/asymmetry_features.csv"
+    mask_folder_path = r''
+    output_csv_path = r''
 
     os.makedirs(os.path.dirname(output_csv_path), exist_ok=True)
-    
-    # Call the function correctly now
+
     df = extract_asymmetry_features(folder_path=mask_folder_path, output_csv=output_csv_path)
 
     if not df.empty:

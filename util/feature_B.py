@@ -2,7 +2,7 @@ import os
 import cv2
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from tqdm import tqdm
 
 def extract_border_features_from_folder(
@@ -50,8 +50,6 @@ def extract_border_features_from_folder(
 
         except Exception as e:
             print(f"\nError processing {filename}: {str(e)}")
-            # Optionally append a row with NaNs or default values
-            # to keep track of failed files, but for now we skip.
             continue
 
     if not features_list:
@@ -151,13 +149,10 @@ def extract_border_features(
             "laplacian_std": 0.0
         }
 
-# The calculate_border_score function has been removed.
-
 if __name__ == "__main__":
-    # Example usage:
     # IMPORTANT: This should ideally point to your pre-processed, matched MASK directory
     # as masks provide the cleanest definition of a lesion's border.
-    mask_folder_path = r"C:\Users\misog\portfolio\Machine learning skin lesion project\matched_data\masks"
+    mask_folder_path = r''
     output_csv_path = os.path.join(mask_folder_path, "border_features.csv") 
 
     print(f"Starting border feature extraction from: {mask_folder_path}")
